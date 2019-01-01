@@ -5,7 +5,7 @@ import dateutil.parser as dp
 
 import Config
 import PixivException
-import PixivModel
+# import PixivModel
 
 logger = Config.init_logger('PixivAPI')
 
@@ -213,7 +213,7 @@ class PixivAPI():
             'is_followed': result['user']['is_followed'],
             'country_code': result['profile']['country_code']
         }
-        PixivModel.User(result)
+        # PixivModel.User(res.text)
         return info
 
     def works_to_dict(self, result_json):
@@ -266,3 +266,8 @@ class PixivAPI():
         return self.works_to_dict(res.json()['illust'])
 
     #TODO 收藏夹all，作品id，过滤器
+
+
+if __name__ == "__main__":
+    papi = PixivAPI()
+    papi.get_user(3176620)
