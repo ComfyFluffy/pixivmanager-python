@@ -12,18 +12,24 @@ db_path = Config.get_workdir() + db_file
 
 
 class DBCursor():
-    def __init__(self, read_only=False):
-        self.read_only = read_only
+    def __init__(self, row=False, **kwargs):
+        self.connect = sqlite3.connect(db_path, **kwargs)
+        if row:
+            self.connect.row_factory = sqlite3.Row
+        try:
+            self.uri = kwargs['uri']
+        except KeyError:
+            self.uri = False
 
     def __enter__(self):
-        self.conn = sqlite3.connect(db_path, uri=self.read_only)
-        self.conn = sqlite3.connect(db_path, uri=self.read_only)
-        return self.conn.cursor()
+        return self.connect.cursor()
 
-    def __exit__(self, type, value, traceback):
-        if not self.read_only:
-            self.conn.commit()
-        self.conn.close()
+    def __exit__(self, etype, value, traceback):
+        if not etype and not self.uri:
+            self.connect.commit()
+            logger.info('Database commited.')
+        self.connect.close()
+        # print(etype, value, traceback)
 
 
 class PixivDB():

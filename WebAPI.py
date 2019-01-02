@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 
-from flask import (Flask, abort, jsonify, request, send_file,g)
+from flask import (Flask, abort, jsonify, request, send_file, g, json)
 from flask.views import MethodView
 from PIL import Image
 
@@ -35,9 +35,8 @@ mimetypes.add_type('application/javascript', '.js')
 
 thumbnail_cache = bool(int(Config.read_cfg('web_ui', 'thumbnail_cache')))
 
-lock = threading.Lock()
 papi = PixivAPI.PixivAPI()
-pdb = PixivDB.PixivDB(lock)
+pdb = PixivDB.PixivDB()
 
 if thumbnail_cache:
     import sqlite3
@@ -287,25 +286,6 @@ def lookup_works():
     return jsonify(_info_to_json(r))
 
 
-@app.route('/api/works/search')
-def search_works():
-    try:
-        word = request.args.get('q')
-        sort_by = request.args.get('sort_by')
-        sort_by = sort_by if sort_by in SORTS else 'local_id'
-        sort_asc = request.args.get('asc')
-        sort_asc = True if sort_asc else False
-        per_page = request.args.get('per_page')
-        per_page = 30 if not per_page else int(per_page)
-    except:
-        abort(400)
-    if not word:
-        abort(400)
-    r = pdb.search_works(
-        word=word, sort_by=sort_by, sort_asc=sort_asc, per_page=per_page)
-    return jsonify(_info_to_json(r))
-
-
 @app.route('/image/illust/<int:user>/<int:works_id>')
 def get_img(user, works_id):
     # abort(404)
@@ -351,16 +331,34 @@ def get_ugoira(user, works_id):
 
     return send_file(image_io, mimetype='image/gif')
 
+
 def _get_pdb():
     pass
 
+
 class SessionAPI(MethodView):
     def get(self, uuid):
-        return str(uuid)
+        with PixivDB.DBCursor() as dbc:
+            dbc.execute('SELECT * FROM session')
+            r = dbc.fetchone()
+            if not r:
+                abort(404)
+            print(r)
+            return r[1]
 
     def post(self, uuid):
-        print(request.form)
+        try:
+            j = request.data.decode('utf-8')
+        except UnicodeDecodeError:
+            abort(400)
+        if not j:
+            abort(400)
+        with PixivDB.DBCursor() as dbc:
+            dbc.execute('INSERT INTO session VALUES (?,?)', [
+                str(uuid),
+            ])
         return str(uuid)
+
 
 session_view = SessionAPI.as_view('session_api')
 app.add_url_rule(
