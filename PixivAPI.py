@@ -44,7 +44,7 @@ class PixivAPI():
             "https://app-api.pixiv.net/"
         }
         self.s.headers = self.headers
-        if True:
+        if False:
             self.s.proxies = proxy
             self.s.verify = 'Test/fiddler.pem'
         self.refresh_token = None
