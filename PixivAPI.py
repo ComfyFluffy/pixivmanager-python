@@ -2,12 +2,11 @@ import requests
 import retrying
 from datetime import datetime
 import dateutil.parser as dp
+import logging
 
-import Config
+import PixivConfig
 import PixivException
 # import PixivModel
-
-logger = Config.init_logger('PixivAPI')
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
@@ -17,39 +16,25 @@ proxy = {
     'https': 'http://127.0.0.1:8888',
 }
 
-debug = int(Config.read_cfg('DEFAULT', 'debug'))
-
-
-def _on_get_url_error(exception):
-    logger.error(exception)
-    logger.warn('Url access error!')
-    if isinstance(exception, requests.RequestException):
-        logger.warning('Retrying...')
-        return True
-
 
 class PixivAPI():
-    def __init__(self):
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
         self.s = requests.Session()
-        self.headers = {
-            'App-OS':
-            'android',
-            'App-OS-Version':
-            '8.1.0',
-            'App-Version':
-            '5.0.112',
-            'User-Agent':
-            'PixivAndroidApp/5.0.112 (Android 8.1.0; Android SDK built for x86)',
-            "Referer":
-            "https://app-api.pixiv.net/"
-        }
-        self.s.headers = self.headers
+        self.s.headers = dict(PixivConfig.HTTP_HEADERS)
+
         if False:
             self.s.proxies = proxy
             self.s.verify = 'Test/fiddler.pem'
-        self.refresh_token = None
 
-    def login(self, username=None, password=None, refresh_token=None):
+    def __on_get_url_error(self, exception):
+        self.logger.error(exception)
+        self.logger.warn('Url access error!')
+        if isinstance(exception, requests.RequestException):
+            self.logger.warning('Retrying...')
+            return True
+
+    def login(self, username='', password='', refresh_token=''):
         auth_url = 'https://oauth.secure.pixiv.net/auth/token'
         datas = {
             'client_id': CLIENT_ID,
@@ -61,72 +46,81 @@ class PixivAPI():
         def on_succeed(login_result):
             parsed_result = login_result.json()
             self.pixiv_user_id = parsed_result['response']['user']['id']
-            access_token = parsed_result['response']['access_token']
-            self.headers['Authorization'] = 'Bearer ' + access_token
-            self.s.headers = self.headers
-            refresh_token = parsed_result['response']['refresh_token']
-            Config.set_cfg('pixiv', 'refresh_token', refresh_token)
-            logger.info('Login successful! User ID: %s' % self.pixiv_user_id)
+            self.s.headers[
+                'Authorization'] = 'Bearer ' + parsed_result['response']['access_token']
+            self.refresh_token = parsed_result['response']['refresh_token']
+            self.logger.info(
+                'Login successful! User ID: %s' % self.pixiv_user_id)
+            return {
+                'status_code': 0,
+                'status_message': 'OK',
+                'refresh_token': refresh_token
+            }
 
         def login_password(username, password):
-            logger.info('Login with password...')
+            self.logger.info('Login with password...')
             datas['grant_type'] = 'password'
             datas['username'] = username
             datas['password'] = password
-            login_result = self.s.post(auth_url, data=datas, timeout=15)
+            login_result = self.s.post(auth_url, data=datas, timeout=20)
             if login_result.status_code == 200:
-                on_succeed(login_result)
-                return 0
+                return on_succeed(login_result)
             else:
-                logger.warning('Password error?')
-                return 2
+                self.logger.warning('Password error?')
+                return {'status_code': -1, 'status_message': 'PASSWORD ERROR?'}
 
         def login_token(refresh_token):
-            logger.info('Login with token...')
+            self.logger.info('Login with token...')
             datas['grant_type'] = 'refresh_token'
             datas['refresh_token'] = refresh_token
-            login_result = self.s.post(auth_url, data=datas, timeout=15)
+            login_result = self.s.post(auth_url, data=datas, timeout=20)
             if login_result.status_code == 200:
-                on_succeed(login_result)
-                return 0
+                return on_succeed(login_result)
             else:
-                logger.warning('Can not login with token!')
-                return 1
+                self.logger.warning('Can not login with token!')
+                return {
+                    'status_code': -2,
+                    'status_message': 'TOKEN LOGIN FAILED'
+                }
 
         try:
-            if username != None and password != None:
+            if username and password:
                 return login_password(username, password)
-            elif refresh_token != None:
+            elif refresh_token:
                 return login_token(refresh_token)
             else:
-                logger.warning('Nothing to do when login!')
-        except requests.RequestException:
-            logger.exception('Error on login!')
-            return 3
+                return login_token(self.refresh_token)
+        except requests.RequestException as e:
+            self.logger.exception('Error on login!')
+            return {
+                'status_code': -3,
+                'status_message': 'NETWORK ERROR',
+                'exception': e
+            }
 
     @retrying.retry(
         stop_max_attempt_number=3,
-        retry_on_exception=_on_get_url_error,
+        retry_on_exception=__on_get_url_error,
         wait_fixed=2000)
     def get_url(self, url):
-        logger.debug('Accessed url: ' + url)
-        if self.headers.get('Authorization') == None:
-            logger.warning('Empty Pixiv token! Should login first!')
+        self.logger.debug('Accessed url: %s' % url)
+        if self.s.headers.get('Authorization') == None:
+            self.logger.warning('Empty Pixiv token found! Should login first!')
         result = self.s.get(url)
         if result.status_code == 200:
             return result
         elif result.status_code == 400:
-            logger.warning('Status code: 400. Try relogin..')
-            logger.debug('%s | %s' % (url, result.text))
-            self.login(refresh_token=self.refresh_token)
+            self.logger.warning('Status code: 400. Try relogin..')
+            self.logger.debug('%s | %s' % (url, result.text))
+            self.login()
             result = self.s.get(url)
             if result.status_code != 200:
-                logger.exception('Still %s ! | %s | %s' % (result.status_code,
-                                                           url, result.text))
+                self.logger.error('Still got %s ! | %s | %s' %
+                                  (result.status_code, url, result.text))
             return result
         else:
-            logger.exception('Status code: %d' % result.status_code)
-            logger.debug('%s | %s' % (url, result.text))
+            self.logger.error('Status code: %d' % result.status_code)
+            self.logger.debug('%s | %s' % (url, result.text))
             return result
 
     def raw_user(self, user_id):
@@ -135,7 +129,8 @@ class PixivAPI():
         if result.status_code == 200:
             return result
         else:
-            logger.warn('raw_user() : Got empty result , user_id=%s' % user_id)
+            self.logger.warn(
+                'raw_user() : Got empty result , user_id=%s' % user_id)
 
     def raw_bookmark_first(self, user_id=None, private=False):
         if private:
@@ -149,8 +144,9 @@ class PixivAPI():
         if result.status_code == 200:
             return result
         else:
-            logger.warn('raw_bookmark_first() : Got empty result , user_id=%s'
-                        % user_id)
+            self.logger.warn(
+                'raw_bookmark_first() : Got empty result , user_id=%s' %
+                user_id)
 
     def raw_work_detail(self, work_id):
         result = self.get_url(
@@ -159,7 +155,7 @@ class PixivAPI():
         if result.status_code == 200:
             return result
         else:
-            logger.warn(
+            self.logger.warn(
                 'raw_work_detail() : Got empty result , work_id=%s' % work_id)
 
     def raw_ugoira(self, ugoira_id):
@@ -169,7 +165,7 @@ class PixivAPI():
         if result.status_code == 200:
             return result
         else:
-            logger.warn(
+            self.logger.warn(
                 'raw_ugoira() : Got empty result , ugoira_id=%s' % ugoira_id)
 
     def raw_user_works(self, user_id):
@@ -178,7 +174,7 @@ class PixivAPI():
         if result.status_code == 200:
             return result
         else:
-            logger.warn(
+            self.logger.warn(
                 'raw_user_works() : Got empty result , user_id=%s' % user_id)
 
     def _get_gender(self, g):
@@ -213,15 +209,14 @@ class PixivAPI():
             'is_followed': result['user']['is_followed'],
             'country_code': result['profile']['country_code']
         }
-        # PixivModel.User(res.text)
         return info
 
     def works_to_dict(self, result_json):
         ri = result_json
         if ri['visible'] == False:
-            logger.warn('Work %s is invisible!' % ri['id'])
+            self.logger.warn('Work %s is invisible!' % ri['id'])
             return
-        tags = list(set(t['name'] for t in ri['tags']))
+        tags = list({t['name'] for t in ri['tags']})
         tags.sort()
         try:
             tags.remove('R-18G')
@@ -266,8 +261,3 @@ class PixivAPI():
         return self.works_to_dict(res.json()['illust'])
 
     #TODO 收藏夹all，作品id，过滤器
-
-
-if __name__ == "__main__":
-    papi = PixivAPI()
-    papi.get_user(3176620)

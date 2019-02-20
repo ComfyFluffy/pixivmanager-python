@@ -1,16 +1,22 @@
+#!/usr/bin/python3
 '''
 A simple CMD tool for bookmarks download and user's works download.
 Supports database updating.
 '''
 
-import click
+import os
+import sys
 import time
 
-import Config
+import click
+
 import PixivAPI
+import PixivConfig
 import PixivDB
 import PixivDownloader
 import PixivHelper
+
+os.chdir(os.path.dirname(sys.argv[0]))
 
 
 @click.command()
@@ -30,7 +36,7 @@ import PixivHelper
     type=click.STRING,
     help='Works type to download.\
     \nCan be illusts / manga / ugoira.')
-@click.option(
+@click.option(  #TODO https://click-docs-zh-cn.readthedocs.io/zh/latest/options.html
     '--tags-include',
     default=None,
     type=click.STRING,
@@ -65,12 +71,11 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         print('Value USER | MAX | DOWNLOAD_TYPE must be INT.')
         exit(-1)
 
-    papi = PixivAPI.PixivAPI()
-    refresh_token = Config.read_cfg('pixiv', 'refresh_token')
+    pcfg = PixivConfig.PixivConfig('config.json')
+    papi = PixivAPI.PixivAPI(pcfg)
     try:
-        if refresh_token:
-            refresh_token = Config.read_cfg('pixiv', 'refresh_token')
-            login_result = papi.login(refresh_token=refresh_token)
+        if pcfg.cfg['pixiv']['refresh_token']:
+            login_result = papi.login()
         else:
             import getpass
             username = input('E-mail / Pixiv ID: ')
@@ -82,7 +87,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     if login_result != 0:
         exit(-1)
     pdb = PixivDB.PixivDB()
-    pdl = PixivDownloader.PixivDownloader()
+    pdl = PixivDownloader.PixivDownloader(pcfg)
     user = None if user == 0 else user
     try:
         if download_type == 0:

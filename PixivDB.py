@@ -1,25 +1,21 @@
 import os
 import sqlite3
 import sys
+from logging import Logger
 import time
+from pathlib import Path
 
-import Config
+import PixivConfig
 import PixivAPI
-
-logger = Config.init_logger('PixivDB')
-db_file = 'database.db'
-db_path = Config.get_workdir() + db_file
 
 
 class DBCursor():
-    def __init__(self, row=False, **kwargs):
-        self.connect = sqlite3.connect(db_path, **kwargs)
-        if row:
+    def __init__(self, db_file, logger: Logger, **kwargs):
+        self.connect = sqlite3.connect(str(db_file), **kwargs)
+        if kwargs.get('row'):
             self.connect.row_factory = sqlite3.Row
-        try:
-            self.uri = kwargs['uri']
-        except KeyError:
-            self.uri = False
+        self.uri = kwargs.get('uri')
+        self.logger = logger
 
     def __enter__(self):
         return self.connect.cursor()
@@ -27,24 +23,26 @@ class DBCursor():
     def __exit__(self, etype, value, traceback):
         if not etype and not self.uri:
             self.connect.commit()
-            logger.info('Database commited.')
+            self.logger.info('Database commited.')
         self.connect.close()
         # print(etype, value, traceback)
 
 
 class PixivDB():
-    def __init__(self):
-        if not os.path.exists(db_path):
-            with DBCursor() as dbc:
+    def __init__(self, db_file: Path, logger: Logger):
+        if not db_file.exists():
+            with DBCursor(db_file, logger) as dbc:
                 with open('init_db.sql', 'r', encoding='utf-8') as sql:
                     SQL_INIT_DB = sql.read()
                 dbc.executescript(SQL_INIT_DB)
-                logger.info('Created database: %s' % db_path)
+                logger.info('Created database: %s' % db_file)
+        self.logger = logger
+        self.DBCursor = DBCursor
 
-    def get_connect(self, read_only=True, timeout=0):
-        return sqlite3.connect(db_path, uri=read_only, timeout=timeout)
+    # def get_connect(self, read_only=True, timeout=0):
+    #     return sqlite3.connect(db_path, uri=read_only, timeout=timeout)
 
-    def _get_gender(self, g):
+    def __get_gender(self, g):
         if g == 'female':
             return 1
         elif g == 'male':
@@ -86,7 +84,7 @@ class PixivDB():
             sql = "INSERT INTO users (%s) VALUES (%s)" % (columns,
                                                           placeholders)
             dbcursor.execute(sql, list(user_info.values()))
-            logger.debug('New user: %s' % user_id)
+            logger.info('New user: %s' % user_id)
         except sqlite3.IntegrityError:
             if update:
                 columns = ' = ?,'.join(user_info.keys())
