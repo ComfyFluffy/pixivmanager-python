@@ -6,7 +6,7 @@ import logging
 
 import PixivConfig
 import PixivException
-# import PixivModel
+import PixivModel as PM
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
@@ -45,16 +45,21 @@ class PixivAPI():
 
         def on_succeed(login_result):
             parsed_result = login_result.json()
-            self.pixiv_user_id = parsed_result['response']['user']['id']
+            user_json = parsed_result['response']['user']
+            self.user_self = PM.User(
+                user_id=user_json['id'],
+                name=user_json['name'],
+                account=user_json['account'])
+            self.pixiv_user_id = user_json['id']
             self.s.headers[
                 'Authorization'] = 'Bearer ' + parsed_result['response']['access_token']
             self.refresh_token = parsed_result['response']['refresh_token']
-            self.logger.info(
-                'Login successful! User ID: %s' % self.pixiv_user_id)
+            self.logger.info('Login successful! User ID: %s' % user_json['id'])
             return {
                 'status_code': 0,
                 'status_message': 'OK',
-                'refresh_token': refresh_token
+                'refresh_token': refresh_token,
+                'user': self.user_self
             }
 
         def login_password(username, password):
@@ -213,7 +218,7 @@ class PixivAPI():
 
     def works_to_dict(self, result_json):
         ri = result_json
-        if ri['visible'] == False:
+        if not ri['visible']:
             self.logger.warn('Work %s is invisible!' % ri['id'])
             return
         tags = list({t['name'] for t in ri['tags']})

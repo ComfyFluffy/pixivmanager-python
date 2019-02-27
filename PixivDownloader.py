@@ -1,10 +1,10 @@
-import logging
 import os
 import queue
 import re
 import shutil
 import threading
 import zipfile
+from logging import Logger
 from pathlib import Path
 
 import imageio
@@ -14,14 +14,9 @@ import retrying
 import PixivConfig
 import PixivException
 
-pfilename = re.compile(r'\d*_.*')
-
 
 class PixivDownloader():
-    def __init__(self,
-                 logger: logging.Logger,
-                 root_download_dir: Path,
-                 threads=5):
+    def __init__(self, logger: Logger, root_download_dir: Path, threads=5):
         self.root_download_dir = root_download_dir
         self.dq = queue.Queue()
         self.s = requests.Session()
@@ -84,7 +79,7 @@ class PixivDownloader():
         parent_dir: Path = self.root_download_dir / download_dir
         if (parent_dir / filename).exists():
             return
-        parent_dir.mkdir(exists_ok=True)
+        parent_dir.mkdir(exist_ok=True)
         with self.s.get(url, stream=True) as res:
             if res.status_code == 200:
                 total_size = int(res.headers['Content-Length'])
