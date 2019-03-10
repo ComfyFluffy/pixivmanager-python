@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from datetime import datetime
 
 HTTP_HEADERS = {
     'App-OS':
@@ -15,6 +16,7 @@ HTTP_HEADERS = {
     'Referer':
     'https://app-api.pixiv.net/'
 }
+ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
 DEFAULT_CFG = {
     'workdir': 'storage',
@@ -31,6 +33,10 @@ DEFAULT_CFG = {
         'thumbnail_cache': True
     }
 }
+
+
+def iso_to_datetime(date_str):
+    return datetime.strptime(date_str, ISO_TIME_FORMAT)
 
 
 def init_logger(logger_name, log_file) -> logging.Logger:
