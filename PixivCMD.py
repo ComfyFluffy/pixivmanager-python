@@ -4,8 +4,6 @@ A simple CMD tool for bookmarks download and user's works download.
 Supports database updating.
 '''
 
-import os
-import sys
 import time
 
 import click
@@ -16,7 +14,7 @@ import PixivDB
 import PixivDownloader
 import PixivHelper
 
-os.chdir(os.path.dirname(sys.argv[0]))
+PixivConfig.cd_script_dir()
 
 
 @click.command()
@@ -25,7 +23,7 @@ os.chdir(os.path.dirname(sys.argv[0]))
     '--user',
     default=0,
     type=click.INT,
-    help='User to download. Default yourself.')
+    help='User to download. Default is current user.')
 @click.option(
     '--max', 'max_times', default=-1, type=click.INT, help='Max get times.')
 @click.option('--private', is_flag=True, help='Download private bookmarks.')
@@ -72,7 +70,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         exit(-1)
 
     pcfg = PixivConfig.PixivConfig('config.json')
-    papi = PixivAPI.PixivAPI(pcfg)
+    # papi = PixivAPI.PixivAPI(pcfg)
     try:
         if pcfg.cfg['pixiv']['refresh_token']:
             login_result = papi.login()
@@ -101,8 +99,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
                                           works_type, tags_include,
                                           tags_exclude)
         while True:
-            if not pdl.dq.empty():
-                time.sleep(1)
+            if pdl.dq.unfinished_tasks:
+                time.sleep(0.1)
             else:
                 break
         pdl.dq.join()

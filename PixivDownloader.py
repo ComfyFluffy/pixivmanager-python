@@ -13,11 +13,12 @@ import retrying
 
 import PixivConfig
 import PixivException
+import PixivModel as PM
 
 
 class PixivDownloader():
     def __init__(self, logger: Logger, root_download_dir: Path, threads=5):
-        self.root_download_dir = root_download_dir
+        self.root_download_dir = Path(root_download_dir)
         self.dq = queue.Queue()
         self.s = requests.Session()
         self.s.headers = dict(PixivConfig.HTTP_HEADERS)
@@ -41,7 +42,7 @@ class PixivDownloader():
                     filename: str,
                     content_stream,
                     slength=0,
-                    ugoira_info=None):
+                    ugoira: PM.Ugoira = None):
         parent_dir = Path(parent_dir)
         image_path: Path = parent_dir / filename
         part_image_path: Path = image_path.with_suffix(image_path.suffix +
@@ -55,17 +56,17 @@ class PixivDownloader():
                 'Downloaded file length not match!')
         part_image_path.replace(image_path)
 
-        if ugoira_info:
-            self.logger.info(
-                'Making GIF for ugoira %s' % ugoira_info['works_id'])
+        if isinstance(ugoira, PM.Ugoira):
+            self.logger.info('Making GIF for ugoira %s' % ugoira.works_id)
             with zipfile.ZipFile(image_path) as ugoira_zip:
-                tgif: Path = parent_dir / '%s_ugoira_tmp.gif' % ugoira_info['works_id']
-                gif: Path = parent_dir / '%s_ugoira.gif' % ugoira_info['works_id']
+                tgif: Path = parent_dir / '%s_ugoira_tmp.gif' % ugoira[
+                    'works_id']
+                gif: Path = parent_dir / '%s_ugoira.gif' % ugoira['works_id']
                 in_zip_files = ugoira_zip.namelist()
                 images = [
                     imageio.imread(ugoira_zip.read(f)) for f in in_zip_files
                 ]
-                delay = [f // 10 / 100 for f in ugoira_info['ugoira']['delay']]
+                delay = [f // 10 / 100 for f in ugoira['ugoira']['delay']]
                 imageio.mimsave(tgif, images, duration=delay)  #1/100s
                 tgif.replace(gif)
         self.logger.info('Downloaded: %s' % filename)
@@ -105,23 +106,23 @@ class PixivDownloader():
         task = [url, download_dir, ugoira_info]
         self.dq.put(task)
 
-    def works(self, works_info):
-        if not works_info:
-            return -1
+    def works(self, works: PM.Works):
+        if isinstance(works, PM.Works):
+            img_parent_dir: Path = Path(str(works.author_id)) / str(
+                works.works_id)
+            if works.works_type == 'ugoira':
+                zip_url = works.ugoira.zip_url.replace('600x600', '1920x1080')
+                self.__add(zip_url, img_parent_dir, works)
+                self.__add(works.image_url,
+                           img_parent_dir)  #TODO works image_url into model
+                return 2
+            if works.page_count == 1:
+                self.__add(works['image_urls'], Path(str(works.author_id)))
+                return 0
+            else:
+                for url in works['image_urls']:
+                    self.__add(url, img_parent_dir)
+                return 1
 
-        img_parent_dir: Path = Path(str(works_info['author_id'])) / str(
-            works_info['works_id'])
-        if works_info['type'] == 'ugoira':
-            zip_url = works_info['ugoira']['zip_url'].replace(
-                '600x600', '1920x1080')
-            self.__add(zip_url, img_parent_dir, works_info)
-            self.__add(works_info['image_urls'], img_parent_dir)
-            return 2
-        if works_info['page_count'] == 1:
-            self.__add(works_info['image_urls'],
-                       Path(str(works_info['author_id'])))
-            return 0
-        else:
-            for url in works_info['image_urls']:
-                self.__add(url, img_parent_dir)
-            return 1
+
+#TODO Move helper into downloader

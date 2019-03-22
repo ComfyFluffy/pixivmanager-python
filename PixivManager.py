@@ -2,9 +2,6 @@
 import os
 import sys
 
-if sys.argv[0] != 'PixivManager.py':
-    os.chdir(os.path.dirname(sys.argv[0]))
-
 import WebAPI
 
 try:
@@ -25,4 +22,4 @@ try:
 except Exception as e:
     print('Can not set proccess priority. %s' % e)
 
-WebAPI.start()
+WebAPI.run()

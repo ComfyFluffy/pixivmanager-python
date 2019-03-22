@@ -1,11 +1,14 @@
-import PixivDB
+from PixivAPI import PixivAPI
+from PixivModel import PixivDB
+from PixivDownloader import PixivDownloader
+from logging import Logger
 
 
 def analyze(res,
-            papi,
-            pdb,
-            pdl,
-            logger,
+            papi: PixivAPI,
+            pdb: PixivDB,
+            pdl: PixivDownloader,
+            logger: Logger,
             max_get_times=-1,
             update_users=True,
             works_type=None,
@@ -56,10 +59,10 @@ def analyze(res,
 
 
 def download_all_bookmarks(user_id,
-                           papi,
-                           pdb,
-                           pdl,
-                           logger,
+                           papi: PixivAPI,
+                           pdb: PixivDB,
+                           pdl: PixivDownloader,
+                           logger: Logger,
                            private=False,
                            max_get_times=-1,
                            works_type=None,
@@ -81,10 +84,10 @@ def download_all_bookmarks(user_id,
 
 
 def download_all_user(user_id,
-                      papi,
-                      pdb,
-                      pdl,
-                      logger,
+                      papi: PixivAPI,
+                      pdb: PixivDB,
+                      pdl: PixivDownloader,
+                      logger: Logger,
                       max_get_times=-1,
                       works_type=None,
                       tags_include=[],

@@ -3,6 +3,7 @@ __pycache__
 /storage
 desktop.ini
 .vscode
+.idea
 /config.json
 /sync.ffs_db
 *.7z

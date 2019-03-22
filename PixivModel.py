@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import (FLOAT, BigInteger, Boolean, Column, ForeignKey,
                         Integer, String, Table, Text, UniqueConstraint,
                         create_engine)
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.orm import backref, relationship, sessionmaker
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import exists
@@ -20,6 +20,8 @@ class IntegerTimestamp(TypeDecorator):
         TypeDecorator.__init__(self)
 
     def process_bind_param(self, value, dialect):
+        if isinstance(value, int):
+            return value
         return int(value.timestamp()) if value else None
 
     def process_result_value(self, value, dialect):
@@ -76,6 +78,7 @@ class Works(Base):
     author = relationship('User', back_populates='works')
     ugoira = relationship('Ugoira', uselist=False)
     caption = relationship('WorksCaption', uselist=False)
+    works_image_urls = relationship('WorksImageURLs', uselist=False)
 
     tags = relationship('Tag', secondary=works_tags_table, backref='works')
     custom_tags = relationship(
@@ -88,7 +91,7 @@ class Works(Base):
         return f'PixivWorks(works_id={self.works_id}, author_id={self.author_id}, title={self.title}, local_id={self.local_id})'
 
     @classmethod
-    def from_json(cls, json_info, session: Session):
+    def from_json(cls, session: Session, json_info):
         j = json_info
         if j['caption']:
             _caption = WorksCaption.get_works_caption(session, j['id'])
@@ -180,11 +183,16 @@ class Ugoira(Base):
 
     _delay = []
 
+    def __repr__(self):
+        return 'Ugoira(works_id=%r, zip_url=%r, delay_text=%r)' % (
+            self.works_id, self.zip_url, self.delay_text[:20])
+
     @classmethod
-    def fron_json(cls, session, ugoira_json):
+    def from_json(cls, session: Session, works_id, ugoira_json):
         _delay = [f['delay'] for f in ugoira_json['ugoira_metadata']['frames']]
 
         kv = {
+            'works_id': works_id,
             'zip_url': ugoira_json['ugoira_metadata']['zip_urls']['medium'],
             'delay_text': ' '.join([str(d) for d in _delay]),
             '_delay': _delay
@@ -194,19 +202,25 @@ class Ugoira(Base):
 
     @property
     def delay(self):
-        return self._delay or [int(d) for d in self.delay_text.split()]
+        if not self._delay:
+            self._delay = [int(d) for d in self.delay_text.split()]
+        return self._delay
 
 
-# class WorksImageURLs(Base):
-#     __tablename__ = 'works_image_urls'
+class WorksImageURLs(Base):
+    __tablename__ = 'works_image_urls'
 
-#     works_id = Column(
-#         Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
-#     page = Column(Integer, primary_key=True)
-#     large = Column(String(255))
-#     medium = Column(String(255))
-#     square_medium = Column(String(255))
-#     original = Column(String(255))
+    def __repr__(self):
+        return 'WorksImageURLs(works_id=%s,original=%r)' % (self.works_id,
+                                                            self.original)
+
+    works_id = Column(
+        Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
+    page = Column(Integer, primary_key=True)
+    square_medium = Column(String(255))
+    medium = Column(String(255))
+    large = Column(String(255))
+    original = Column(String(255))
 
 
 class WorksCaption(Base):
@@ -220,13 +234,17 @@ class WorksCaption(Base):
         return str(self.caption_text)
 
     def __repr__(self):
-        return 'WorksCaption(works_id=%r, caption_text=%r)' % self.works_id, self.caption_text
+        return 'WorksCaption(works_id=%r, caption_text=%r)'\
+            % self.works_id, self.caption_text[:30]
 
     @classmethod
-    def get_works_caption(cls, session: Session, _works_id):
-        c = session.query(cls).filter(cls.works_id == _works_id).one_or_none()
-        if not c:
-            c = cls(works_id=_works_id)
+    def get_works_caption(cls,
+                          session: Session,
+                          works_id,
+                          create_if_not_exist=True):
+        c = session.query(cls).filter(cls.works_id == works_id).one_or_none()
+        if not c and create_if_not_exist:
+            c = cls(works_id=works_id)
         return c
 
 
@@ -244,10 +262,10 @@ class Tag(Base):
         return str(self.tag_text)
 
     def __repr__(self):
-        return f'Tag(tag_id={self.tag_id}, tag_text={self.tag_text})'
+        return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
 
     @classmethod
-    def get_tags_list(cls, tags: list, session: Session):
+    def get_tags_list(cls, session: Session, tags: list):
         l = []
         for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
@@ -271,10 +289,11 @@ class CustomTag(Base):
         return str(self.custom_tag_text)
 
     def __repr__(self):
-        return f'CustomTag(custom_tag_id={self.custom_tag_id}, custom_tag_text={self.custom_tag_text})'
+        return 'CustomTag(custom_tag_id=%r, custom_tag_text=%r)' % (
+            self.custom_tag_id, self.custom_tag_text)
 
     @classmethod
-    def get_custom_tags_list(cls, custom_tags: list, session: Session):
+    def get_custom_tags_list(cls, session: Session, custom_tags: list):
         l = []
         for ts in custom_tags:
             t = session.query(cls).filter(
@@ -285,10 +304,9 @@ class CustomTag(Base):
         return l
 
 
-if __name__ == "__main__":
-    DB_CONNECT = 'sqlite:///storage/sqlalchemytest.db'
-
-    engine = create_engine(DB_CONNECT, echo=True)
-    Base.metadata.create_all(engine)
-    S = sessionmaker(bind=engine)
-    s = S()
+class PixivDB:
+    def __init__(self, db_uri: str, create_all=True):
+        self.engine = create_engine(db_uri, echo=True)
+        if create_all:
+            Base.metadata.create_all(self.engine)
+        self.sessionmaker = sessionmaker(bind=self.engine)
