@@ -1,12 +1,11 @@
 import requests
 import retrying
 from datetime import datetime
-import dateutil.parser as dp
+from logging import Logger
 import logging
 
-import PixivConfig
+from PixivConfig import HTTP_HEADERS, init_logger
 import PixivException
-import PixivModel as PM
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
@@ -19,22 +18,24 @@ proxy = {
 }
 
 
-class PixivAPI():
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
+def _on_get_url_error(exception):
+    if isinstance(exception, requests.RequestException):
+        print('RETRYING...')
+        return True
+
+
+class PixivAPI:
+    logger = init_logger('_PixivAPI_')
+
+    def __init__(self, logger: Logger = None):
+        if logger:
+            self.logger = logger
         self.s = requests.Session()
-        self.s.headers = dict(PixivConfig.HTTP_HEADERS)
+        self.s.headers = dict(HTTP_HEADERS)
 
         if False:
             self.s.proxies = proxy
             self.s.verify = 'Test/fiddler.pem'
-
-    def __on_get_url_error(self, exception):
-        self.logger.error(exception)
-        self.logger.warn('Url access error!')
-        if isinstance(exception, requests.RequestException):
-            self.logger.warning('Retrying...')
-            return True
 
     def login(self, username='', password='', refresh_token=''):
         auth_url = 'https://oauth.secure.pixiv.net/auth/token'
@@ -103,7 +104,7 @@ class PixivAPI():
 
     @retrying.retry(
         stop_max_attempt_number=3,
-        retry_on_exception=__on_get_url_error,
+        retry_on_exception=_on_get_url_error,
         wait_fixed=2000)
     def _get_url(self, url):
         self.logger.debug('Accessed url: %s' % url)
@@ -141,23 +142,23 @@ class PixivAPI():
         else:
             self.logger.warn('%s(%r) Got empty result' % (caller, url))
 
-    def raw_user(self, user_id):
+    def raw_user_detail(self, user_id):
         return self.get_url(
             'https://app-api.pixiv.net/v1/user/detail?user_id=%s' % user_id,
             'raw_user')
 
-    def raw_bookmark_first(self, user_id, private=False):
+    def raw_user_bookmark_first(self, user_id, private=False):
         p = 'private' if private else 'public'
         return self.get_url(
             'https://app-api.pixiv.net/v1/user/bookmarks/illust?user_id=%s&restrict=%s'
             % (user_id, p), 'raw_bookmark_first')
 
-    def raw_work_detail(self, work_id):
+    def raw_works_detail(self, work_id):
         return self.get_url(
             'https://app-api.pixiv.net/v1/illust/detail?illust_id=%s' %
             work_id, 'raw_work_detail')
 
-    def raw_ugoira(self, ugoira_id):
+    def raw_ugoira_metadata(self, ugoira_id):
         return self.get_url(
             'https://app-api.pixiv.net/v1/ugoira/metadata?illust_id=%s' %
             ugoira_id, 'raw_ugoira')

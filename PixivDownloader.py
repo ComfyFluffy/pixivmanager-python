@@ -9,21 +9,29 @@ from pathlib import Path
 
 import imageio
 import requests
-import retrying
+from sqlalchemy.orm.session import Session
 
 import PixivConfig
 import PixivException
-import PixivModel as PM
+from PixivModel import Works, Ugoira, User
+from PixivAPI import PixivAPI
 
 
-class PixivDownloader():
-    def __init__(self, logger: Logger, root_download_dir: Path, threads=5):
+class PixivDownloader:
+    logger = PixivConfig.init_logger('_PixivDownloader_')
+
+    def __init__(self,
+                 root_download_dir: Path,
+                 threads=5,
+                 logger: Logger = None):
+        assert threads <= 32
         self.root_download_dir = Path(root_download_dir)
         self.dq = queue.Queue()
         self.s = requests.Session()
         self.s.headers = dict(PixivConfig.HTTP_HEADERS)
         self.download_threads_list = []
-        self.logger = logger
+        if logger:
+            self.logger = logger
         self.logger.info('Downloader threads: %s' % threads)
         for x in range(0, threads):
             t = threading.Thread(
@@ -31,22 +39,11 @@ class PixivDownloader():
             self.download_threads_list.append(t)
             t.start()
 
-    def __on_download_err(self, exception):
-        self.logger.error('Download error! %s' % exception)
-        return isinstance(exception,
-                          (requests.RequestException,
-                           PixivException.DownloadError, zipfile.BadZipFile))
-
-    def __save_file(self,
-                    parent_dir: Path,
-                    filename: str,
-                    content_stream,
-                    slength=0,
-                    ugoira: PM.Ugoira = None):
+    def __save_file(self, parent_dir: Path, filename: str, content_stream,
+                    slength: int, ugoira: Ugoira):
         parent_dir = Path(parent_dir)
         image_path: Path = parent_dir / filename
-        part_image_path: Path = image_path.with_suffix(image_path.suffix +
-                                                       '.part')
+        part_image_path: Path = parent_dir / (filename + '.part')
         self.logger.info('Downloading: %s' % filename)
         with part_image_path.open('wb') as f:
             shutil.copyfileobj(content_stream, f)
@@ -56,26 +53,27 @@ class PixivDownloader():
                 'Downloaded file length not match!')
         part_image_path.replace(image_path)
 
-        if isinstance(ugoira, PM.Ugoira):
+        if ugoira:
             self.logger.info('Making GIF for ugoira %s' % ugoira.works_id)
             with zipfile.ZipFile(image_path) as ugoira_zip:
-                tgif: Path = parent_dir / '%s_ugoira_tmp.gif' % ugoira[
-                    'works_id']
-                gif: Path = parent_dir / '%s_ugoira.gif' % ugoira['works_id']
+                tgif: Path = parent_dir / '%s_ugoira_tmp.gif' % ugoira.works_id
+                gif: Path = parent_dir / '%s_ugoira.gif' % ugoira.works_id
                 in_zip_files = ugoira_zip.namelist()
                 images = [
                     imageio.imread(ugoira_zip.read(f)) for f in in_zip_files
                 ]
-                delay = [f // 10 / 100 for f in ugoira['ugoira']['delay']]
-                imageio.mimsave(tgif, images, duration=delay)  #1/100s
+                delay = [
+                    int(f) // 10 / 100 for f in ugoira.delay_text.split()
+                ]  #1/100s
+                imageio.mimsave(tgif, images, duration=delay)
                 tgif.replace(gif)
         self.logger.info('Downloaded: %s' % filename)
 
-    @retrying.retry(
-        stop_max_attempt_number=5,
-        retry_on_exception=__on_download_err,
-        wait_fixed=2000)
-    def __download(self, url: str, download_dir: Path, ugoira_info=None):
+    @PixivConfig._retry((requests.RequestException,
+                         PixivException.DownloadError, zipfile.BadZipFile),
+                        error_msg='Unable to download file. Retrying...',
+                        logger=logger)
+    def __download(self, url: str, download_dir: Path, ugoira: Ugoira = None):
         filename: str = url.split('/')[-1].split('?')[0]
         parent_dir: Path = self.root_download_dir / download_dir
         if (parent_dir / filename).exists():
@@ -85,10 +83,10 @@ class PixivDownloader():
             if res.status_code == 200:
                 total_size = int(res.headers['Content-Length'])
                 self.__save_file(parent_dir, filename, res.raw, total_size,
-                                 ugoira_info)
+                                 ugoira)
             elif url.find('1920x1080') != -1:
                 self.__download((url.replace('1920x1080', '600x600')),
-                                download_dir, ugoira_info)
+                                download_dir, ugoira)
             else:
                 self.logger.warn(
                     'Status code: %s | Url: %s' % (res.status_code, url))
@@ -99,30 +97,80 @@ class PixivDownloader():
             try:
                 self.__download(task[0], task[1], task[2])
             except Exception:
-                self.logger.exception('Download error: %s' % task)
+                self.logger.exception('Download error: ' + str(task))
             self.dq.task_done()
 
-    def __add(self, url: str, download_dir: Path, ugoira_info=None):
-        task = [url, download_dir, ugoira_info]
+    def __add(self, url: str, download_dir: Path, ugoira=None):
+        task = (url, download_dir, ugoira)
         self.dq.put(task)
 
-    def works(self, works: PM.Works):
-        if isinstance(works, PM.Works):
+    def single_works(self, works: Works, image_size='original'):
+        if works.works_type == 'ugoira':
             img_parent_dir: Path = Path(str(works.author_id)) / str(
                 works.works_id)
-            if works.works_type == 'ugoira':
-                zip_url = works.ugoira.zip_url.replace('600x600', '1920x1080')
-                self.__add(zip_url, img_parent_dir, works)
-                self.__add(works.image_url,
-                           img_parent_dir)  #TODO works image_url into model
-                return 2
-            if works.page_count == 1:
-                self.__add(works['image_urls'], Path(str(works.author_id)))
-                return 0
-            else:
-                for url in works['image_urls']:
-                    self.__add(url, img_parent_dir)
-                return 1
+            zip_url = works.ugoira.zip_url.replace('600x600', '1920x1080')
+            self.__add(zip_url, img_parent_dir, works.ugoira)
+            self.__add(
+                getattr(works.image_urls[0], image_size), img_parent_dir)
+            return 2
+        if works.page_count == 1:
+            self.__add(
+                getattr(works.image_urls[0], image_size),
+                Path(str(works.author_id)))
+            return 0
+        else:
+            for url in works.image_urls:
+                self.__add(
+                    getattr(url, image_size),
+                    Path(str(works.author_id)) / str(works.works_id))
+            return 1
+
+    def all_users_works(self,
+                        papi: PixivAPI,
+                        session: Session,
+                        user_id,
+                        max_get_times: int,
+                        works_type: str,
+                        tags_include=set(),
+                        tags_exclude=set()):
+        res = papi.raw_user_works(user_id)
+        if res:
+            self.__analyze_res(res, papi, session, max_get_times, works_type,
+                               tags_include, tags_exclude)
+
+    def __analyze_res(self,
+                      res,
+                      papi: PixivAPI,
+                      session: Session,
+                      max_get_times: int,
+                      works_type: str,
+                      tags_include=set(),
+                      tags_exclude=set()):
+        n = 0
+        r = res.json()
+
+        tags_include = set(tags_include)
+        tags_exclude = set(tags_exclude)
+        works_list = []
+        users_set = set()
+
+        while max_get_times > 0:
+            n += len(r['illusts'])
+            self.logger.info('Got works: %s' % n)
+            max_get_times -= 1
+            for wj in r['illusts']:
+                works = Works.from_json(session, wj, add_to_session=False)
+                works_tags = {t.tag_text for t in works.tags}
+                if works_type and works.works_type != works_type \
+                or tags_include and not tags_include.issubset(works_tags) \
+                or tags_exclude and tags_exclude.issubset(works_tags):
+                    continue
+                users_set.add(wj['user']['id'])
+                works_list.append(works)
+                self.single_works(works)
+
+        works_list.reverse()
+        session.add_all(works_list)
 
 
 #TODO Move helper into downloader

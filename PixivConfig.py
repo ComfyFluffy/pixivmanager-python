@@ -5,6 +5,9 @@ import sys
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
+from functools import wraps
+import traceback
+import time
 
 HTTP_HEADERS = {
     'App-OS': 'android',
@@ -18,21 +21,22 @@ ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
 DEFAULT_CFG = {
     'workdir':
-    'storage',  #Directory to save downloaded works amd database files
+    'storage',  # Directory to save downloaded works amd database files
     'debug': False,
     'pixiv': {
-        'refresh_token': ''  #Refresh token for auto relogin
+        'refresh_token': ''  # Refresh token for auto relogin
     },
     'downloader': {
-        'threads': 5  #Image download threads
+        'threads': 5  #Image downloader threads
     },
     'web_ui': {
-        'ip': '127.0.0.1',  #Web server listened IP
-        'port': 5266,  #Web server listened port
-        'thumbnail_cache': True  #Enable thumbnail cache for better performance
+        'ip': '127.0.0.1',  # Web server listened IP
+        'port': 5266,  # Web server listened port
+        'thumbnail_cache':
+        True  # Enable thumbnail cache for better performance
     },
     'database': {
-        'method': 'sqlite',  #sqlite or mysql
+        'method': 'sqlite',  # sqlite or mysql
         'mysql': {
             'username': 'root',
             'password': '',
@@ -51,23 +55,53 @@ def iso_to_datetime(date_str):
     return datetime.strptime(date_str, ISO_TIME_FORMAT)
 
 
-def init_logger(logger_name, log_file) -> logging.Logger:
+def init_logger(logger_name, log_file=None) -> logging.Logger:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
-    cf = logging.FileHandler(filename=log_file, encoding='utf-8')
     ch.setLevel(logging.INFO)
-    cf.setLevel(logging.DEBUG)
     logger_formatter = logging.Formatter(
         '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s')
     ch.setFormatter(logger_formatter)
-    cf.setFormatter(logger_formatter)
     logger.addHandler(ch)
-    logger.addHandler(cf)
+    if log_file:
+        cf = logging.FileHandler(filename=log_file, encoding='utf-8')
+        cf.setLevel(logging.DEBUG)
+        cf.setFormatter(logger_formatter)
+        logger.addHandler(cf)
     return logger
 
 
-class PixivConfig(object):
+def _retry(exception,
+           tries=5,
+           delay=3,
+           error_msg=None,
+           logger=None,
+           print_traceback=True):
+    def deco_retry(f):
+        @wraps(f)
+        def f_retry(*args, **kwargs):
+            _tries = tries
+            while _tries > 1:
+                try:
+                    return f(*args, **kwargs)
+                except exception:
+                    _tries -= 1
+                    if logger and error_msg:
+                        logger.error(error_msg)
+                    elif error_msg:
+                        print(error_msg)
+                    if print_traceback:
+                        traceback.print_exc()
+                    time.sleep(delay)
+            return f(*args, **kwargs)
+
+        return f_retry
+
+    return deco_retry
+
+
+class PixivConfig:
     def __init__(self, cfg_json_file):
         self.cfg_json_file = Path(cfg_json_file)
 

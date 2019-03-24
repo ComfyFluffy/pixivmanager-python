@@ -16,9 +16,11 @@ db = PM.PixivDB(pcfg.database_uri)
 
 class GetWorksCaption(Resource):
     def get(self, works_id: int):
-        r = db.session.query(PM.WorksCaption).filter(
+        session = db.sessionmaker()
+        r = session.query(PM.WorksCaption).filter(
             PM.WorksCaption.works_id == works_id).one_or_none()
-        return r.caption_text or None
+        if r:
+            return r.caption_text
 
 
 api.add_resource(GetWorksCaption, '/api/getCaption/<int:works_id>')
