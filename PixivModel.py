@@ -2,14 +2,15 @@ from datetime import datetime
 
 from sqlalchemy import (FLOAT, BigInteger, Boolean, Column, ForeignKey,
                         Integer, String, Table, Text, create_engine)
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import backref, relationship, sessionmaker
 from sqlalchemy.orm.session import Session
-from sqlalchemy.types import TypeDecorator
-from sqlalchemy.sql import exists
-from PixivConfig import iso_to_datetime
-from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.schema import CreateColumn
+from sqlalchemy.sql import exists
+from sqlalchemy.types import TypeDecorator
+
+from PixivConfig import iso_to_datetime
 
 Base = declarative_base()
 
@@ -21,7 +22,7 @@ def dict_setattr(obj, d: dict):
 
 @compiles(String, 'sqlite')
 def skip_sqlite_collation(element, compiler, **kwargs):
-    element.collation = None
+    element.collation = ''
     return compiler.visit_VARCHAR(element, **kwargs)
 
 
@@ -65,7 +66,7 @@ works_custom_tags_table = Table(
     Column(
         'tag_id',
         Integer,
-        ForeignKey('tags.tag_id'),
+        ForeignKey('custom_tags.tag_id'),
         index=True,
         primary_key=True))
 
@@ -105,7 +106,8 @@ class Works(Base):
     @classmethod
     def from_json(cls, session: Session, json_info, add_to_session=True):
         j: dict = json_info
-        _caption = _bookmark_rate = _tags = _create_date = None
+        _caption = _bookmark_rate = _create_date = None
+        _tags = []
         if j.get('caption'):
             _caption = WorksCaption.get_one(session, j['id'])
             _caption.caption_text = j['caption']
@@ -190,6 +192,13 @@ class User(Base):
             dict_setattr(u, kv)
         return u
 
+    @classmethod
+    def create_if_empty(cls, session: Session, user_id, **kwargs):
+        if not session.query(exists().where(cls.user_id == user_id)).scalar():
+            new_user = cls(user_id=user_id, **kwargs)
+            session.add(new_user)
+            return new_user
+
 
 class Ugoira(Base):
     __tablename__ = 'ugoiras'
@@ -240,8 +249,13 @@ class WorksImageURLs(Base):
     original = Column(String(255))
 
     @classmethod
-    def get_one(cls, session: Session, works_id, create_if_not_exist=True):
-        o = session.query(cls).filter(cls.works_id == works_id).one_or_none()
+    def get_one(cls,
+                session: Session,
+                works_id,
+                page,
+                create_if_not_exist=True):
+        o = session.query(cls).filter(cls.works_id == works_id,
+                                      cls.page == page).one_or_none()
         if not o and create_if_not_exist:
             o = cls(works_id=works_id)
         return o
@@ -251,7 +265,7 @@ class WorksImageURLs(Base):
         r = []
         if works_json_info['page_count'] > 1 and works_json_info['meta_pages']:
             for page, u in enumerate(works_json_info['meta_pages']):
-                o = cls.get_one(session, works_json_info['id'])
+                o = cls.get_one(session, works_json_info['id'], page)
                 urls = u['image_urls']
 
                 o.page = page
@@ -264,7 +278,7 @@ class WorksImageURLs(Base):
 
         elif works_json_info['page_count'] == 1 and works_json_info[
                 'meta_single_page']:
-            o = cls.get_one(session, works_json_info['id'])
+            o = cls.get_one(session, works_json_info['id'], 0)
             urls = works_json_info['image_urls']
 
             o.page = 0
@@ -321,12 +335,17 @@ class Tag(Base):
         return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
 
     @classmethod
-    def from_tags_text_list(cls, session: Session, tags: list):
+    def from_tags_text_list(cls,
+                            session: Session,
+                            tags: list,
+                            add_to_session=True):
         l = []
         for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
             if not t:
                 t = cls(tag_text=ts)
+                if add_to_session:
+                    session.add(t)
             l.append(t)
         return l
 
@@ -365,6 +384,9 @@ class PixivDB:
         if create_tables:
             Base.metadata.create_all(self.engine)
         self.sessionmaker = sessionmaker(bind=self.engine)
+
+    def get_session(self):
+        return self.sessionmaker()
 
 
 if __name__ == "__main__":
