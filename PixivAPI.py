@@ -3,10 +3,9 @@ from datetime import datetime
 from logging import Logger
 
 import requests
-import retrying
 
 import PixivException
-from PixivConfig import HTTP_HEADERS, init_logger
+from PixivConfig import HTTP_HEADERS, init_logger, _retry
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
@@ -17,12 +16,6 @@ proxy = {
     'http': 'http://127.0.0.1:8888',
     'https': 'http://127.0.0.1:8888',
 }
-
-
-def _on_get_url_error(exception):
-    if isinstance(exception, requests.RequestException):
-        print('RETRYING...')
-        return True
 
 
 class PixivAPI:
@@ -36,7 +29,7 @@ class PixivAPI:
 
         if False:
             self.s.proxies = proxy
-            self.s.verify = 'Test/fiddler.pem'
+            self.s.verify = 'storage/fiddler.pem'
 
     def login(self, username='', password='', refresh_token=''):
         auth_url = 'https://oauth.secure.pixiv.net/auth/token'
@@ -103,10 +96,10 @@ class PixivAPI:
                 'exception': e
             }
 
-    @retrying.retry(
-        stop_max_attempt_number=3,
-        retry_on_exception=_on_get_url_error,
-        wait_fixed=2000)
+    @_retry(
+        requests.RequestException,
+        error_msg='API network error! Retrying...',
+        logger=logger)
     def _get_url(self, url):
         self.logger.debug('Accessed url: %s' % url)
         if not self.s.headers.get('Authorization'):

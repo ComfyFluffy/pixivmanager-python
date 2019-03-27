@@ -87,12 +87,15 @@ def _retry(exception,
                     return f(*args, **kwargs)
                 except exception:
                     _tries -= 1
-                    if logger and error_msg:
+                    if print_traceback and logger and error_msg:
+                        logger.exception(error_msg)
+                    elif logger and error_msg:
                         logger.error(error_msg)
                     elif error_msg:
                         print(error_msg)
-                    if print_traceback:
+                    if print_traceback and not logger:
                         traceback.print_exc()
+
                     time.sleep(delay)
             return f(*args, **kwargs)
 

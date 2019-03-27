@@ -74,8 +74,7 @@ works_custom_tags_table = Table(
 class Works(Base):
     __tablename__ = 'works'
 
-    local_id = Column(Integer, primary_key=True)
-    works_id = Column(Integer, index=True, nullable=False, unique=True)
+    works_id = Column(Integer, index=True, primary_key=True)
     author_id = Column(
         Integer, ForeignKey('users.user_id'), index=True, nullable=False)
     works_type = Column(String(15))
@@ -88,6 +87,7 @@ class Works(Base):
     create_date = Column(IntegerTimestamp)
     insert_date = Column(IntegerTimestamp, default=datetime.now)
 
+    local = relationship('WorksLocal', uselist=False)
     author = relationship('User', back_populates='works')
     ugoira = relationship('Ugoira', uselist=False)
     caption = relationship('WorksCaption', uselist=False)
@@ -97,19 +97,24 @@ class Works(Base):
     custom_tags = relationship(
         'CustomTag', secondary=works_custom_tags_table, backref='works')
 
-    def __str__(self):
-        return f'PixivWorks: {self.works_id} | {self.title}'
+    # def __str__(self):
+    #     return f'PixivWorks: {self.works_id} | {self.title}'
 
     def __repr__(self):
-        return f'PixivWorks(works_id={self.works_id}, author_id={self.author_id}, title={self.title}, local_id={self.local_id})'
+        return f'PixivWorks(works_id={self.works_id}, author_id={self.author_id}, title={self.title})'
 
     @classmethod
-    def from_json(cls, session: Session, json_info, add_to_session=True):
+    def from_json(cls,
+                  session: Session,
+                  json_info,
+                  save_to_session=True,
+                  ugoira_json=None):
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
+        _save = not save_to_session
         if j.get('caption'):
-            _caption = WorksCaption.get_one(session, j['id'])
+            _caption = WorksCaption.get_by_id(session, j['id'], _save)
             _caption.caption_text = j['caption']
         if j.get('total_bookmarks') and j.get('total_view'):
             _bookmark_rate = round(j['total_bookmarks'] / j['total_view'], 5)
@@ -118,6 +123,7 @@ class Works(Base):
                                             [t['name'] for t in j['tags']])
         if j.get('create_date'):
             _create_date = iso_to_datetime(j.get('create_date'))
+        _image_urls = WorksImageURLs.from_works_json(session, j, _save)
 
         kv = {
             'works_id': j['id'],
@@ -127,22 +133,56 @@ class Works(Base):
             'page_count': j.get('page_count'),
             'total_views': j.get('total_view'),
             'total_bookmarks': j.get('total_bookmarks'),
-            'is_bookmarked': j['is_bookmarked'],
+            'is_bookmarked': j.get('is_bookmarked'),
             'bookmark_rate': _bookmark_rate,
-            'caption': _caption,
-            'create_date': _create_date,
-            'tags': _tags,
-            'image_urls': WorksImageURLs.from_works_json(session, j)
+            'create_date': _create_date
         }
-
+        if _caption:
+            kv['caption'] = _caption
+        if _tags:
+            kv['tags'] = _tags
+        if _image_urls:
+            kv['image_urls'] = _image_urls
+        if ugoira_json:
+            kv['ugoira'] = Ugoira.from_json(session, j['id'], ugoira_json,
+                                            _save)
         w = session.query(cls).filter(
             cls.works_id == kv['works_id']).one_or_none()
         if not w:
             w = cls(**kv)
-            if add_to_session:
+            if save_to_session:
                 session.add(w)
         else:
             dict_setattr(w, kv)
+        return w
+
+
+class WorksLocal(Base):
+    __tablename__ = 'works_local'
+
+    local_id = Column(Integer, primary_key=True)
+    works_id = Column(
+        Integer,
+        ForeignKey('works.works_id'),
+        index=True,
+        nullable=False,
+        unique=True)
+
+    def __repr__(self):
+        return 'WorksLocal(local_id=%s, works_id=%s)' % (self.local_id,
+                                                         self.works_id)
+
+    @classmethod
+    def create_if_not_exist(cls,
+                            session: Session,
+                            works_id,
+                            save_to_session=True):
+        w = session.query(WorksLocal).filter(
+            WorksLocal.works_id == works_id).one_or_none()
+        if not w:
+            w = cls(works_id=works_id)
+            if save_to_session:
+                session.add(w)
         return w
 
 
@@ -164,14 +204,14 @@ class User(Base):
 
     works = relationship('Works', back_populates='author')
 
-    def __str__(self):
-        return f'PixivUser: {self.user_id} | {self.name}'
+    # def __str__(self):
+    #     return f'PixivUser: {self.user_id} | {self.name}'
 
     def __repr__(self):
         return f'PixivUser(user_id={self.user_id}, name={self.name}, account={self.account}, local_id={self.local_id})'
 
     @classmethod
-    def from_json(cls, session: Session, json_info, add_to_session=True):
+    def from_json(cls, session: Session, json_info, save_to_session=True):
         kv = {
             'user_id': json_info['user']['id'],
             'name': json_info['user']['name'],
@@ -186,7 +226,7 @@ class User(Base):
             cls.user_id == kv['user_id']).one_or_none()
         if not u:
             u = cls(**kv)
-            if add_to_session:
+            if save_to_session:
                 session.add(u)
         else:
             dict_setattr(u, kv)
@@ -213,8 +253,18 @@ class Ugoira(Base):
         return 'Ugoira(works_id=%r, zip_url=%r, delay_text=%s)' % (
             self.works_id, self.zip_url, str(self.delay_text)[:20])
 
+    @property
+    def delay(self):
+        if not self._delay:
+            self._delay = list(map(int, self.delay_text.split()))
+        return self._delay
+
     @classmethod
-    def from_json(cls, session: Session, works_id, ugoira_json):
+    def from_json(cls,
+                  session: Session,
+                  works_id,
+                  ugoira_json,
+                  save_to_session=True):
         _delay = [f['delay'] for f in ugoira_json['ugoira_metadata']['frames']]
 
         kv = {
@@ -224,13 +274,24 @@ class Ugoira(Base):
             '_delay': _delay
         }
 
-        return cls(**kv)
+        ug = session.query(cls).filter(
+            cls.works_id == kv['works_id']).one_or_none()
+        if not ug:
+            ug = cls(**kv)
+            if save_to_session:
+                session.add(ug)
+        else:
+            dict_setattr(ug, kv)
+        return ug
 
-    @property
-    def delay(self):
-        if not self._delay:
-            self._delay = list(map(int, self.delay_text.split()))
-        return self._delay
+    # @classmethod
+    # def get_by_id(cls, session: Session, works_id, save_to_session=True):
+    #     o = session.query(cls).filter(cls.works_id == works_id).one_or_none()
+    #     if not o:
+    #         o = cls(works_id=works_id)
+    #         if save_to_session:
+    #             session.add(o)
+    #     return o
 
 
 class WorksImageURLs(Base):
@@ -249,26 +310,35 @@ class WorksImageURLs(Base):
     original = Column(String(255))
 
     @classmethod
-    def get_one(cls,
-                session: Session,
-                works_id,
-                page,
-                create_if_not_exist=True):
+    def get_by_id(cls,
+                  session: Session,
+                  works_id,
+                  page,
+                  create_if_not_exist=True,
+                  save_to_session=True):
         o = session.query(cls).filter(cls.works_id == works_id,
                                       cls.page == page).one_or_none()
         if not o and create_if_not_exist:
-            o = cls(works_id=works_id)
+            o = cls(works_id=works_id, page=page)
+            if save_to_session:
+                session.add(o)
         return o
 
     @classmethod
-    def from_works_json(cls, session: Session, works_json_info):
+    def from_works_json(cls,
+                        session: Session,
+                        works_json_info,
+                        save_to_session=True):
         r = []
         if works_json_info['page_count'] > 1 and works_json_info['meta_pages']:
             for page, u in enumerate(works_json_info['meta_pages']):
-                o = cls.get_one(session, works_json_info['id'], page)
+                o = cls.get_by_id(
+                    session,
+                    works_json_info['id'],
+                    page,
+                    save_to_session=save_to_session)
                 urls = u['image_urls']
 
-                o.page = page
                 o.square_medium = urls['square_medium']
                 o.medium = urls['medium']
                 o.large = urls['large']
@@ -278,10 +348,13 @@ class WorksImageURLs(Base):
 
         elif works_json_info['page_count'] == 1 and works_json_info[
                 'meta_single_page']:
-            o = cls.get_one(session, works_json_info['id'], 0)
+            o = cls.get_by_id(
+                session,
+                works_json_info['id'],
+                0,
+                save_to_session=save_to_session)
             urls = works_json_info['image_urls']
 
-            o.page = 0
             o.square_medium = urls['square_medium']
             o.medium = urls['medium']
             o.large = urls['large']
@@ -292,6 +365,9 @@ class WorksImageURLs(Base):
 
         else:
             print('No urls found.')
+
+        if save_to_session:
+            session.add_all(r)
 
         return r
 
@@ -311,10 +387,12 @@ class WorksCaption(Base):
             % (self.works_id, str(self.caption_text)[:20])
 
     @classmethod
-    def get_one(cls, session: Session, works_id, create_if_not_exist=True):
+    def get_by_id(cls, session: Session, works_id, save_to_session=True):
         o = session.query(cls).filter(cls.works_id == works_id).one_or_none()
-        if not o and create_if_not_exist:
+        if not o:
             o = cls(works_id=works_id)
+            if save_to_session:
+                session.add(o)
         return o
 
 
@@ -338,13 +416,13 @@ class Tag(Base):
     def from_tags_text_list(cls,
                             session: Session,
                             tags: list,
-                            add_to_session=True):
+                            save_to_session=True):
         l = []
         for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
             if not t:
                 t = cls(tag_text=ts)
-                if add_to_session:
+                if save_to_session:
                     session.add(t)
             l.append(t)
         return l
@@ -368,12 +446,17 @@ class CustomTag(Base):
                                                       self.tag_text)
 
     @classmethod
-    def from_tags_text_list(cls, session: Session, custom_tags: list):
+    def from_tags_text_list(cls,
+                            session: Session,
+                            tags: list,
+                            save_to_session=True):
         l = []
-        for ts in custom_tags:
+        for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
             if not t:
                 t = cls(tag_text=ts)
+                if save_to_session:
+                    session.add(t)
             l.append(t)
         return l
 

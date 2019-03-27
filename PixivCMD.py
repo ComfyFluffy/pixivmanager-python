@@ -20,7 +20,7 @@ PixivConfig.cd_script_dir()
     type=click.INT,
     help='User to download. Default is the current user.')
 @click.option(
-    '--max', 'max_times', default=-1, type=click.INT, help='Max get times.')
+    '--max', 'max_times', default=None, type=click.INT, help='Max get times.')
 @click.option('--private', is_flag=True, help='Download private bookmarks.')
 @click.option(
     '--type',
@@ -72,26 +72,25 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     if login_result['status_code'] != 0:
         exit(-1)
 
+    logger = pcfg.get_logger('PixivCMD')
     pdb = PixivModel.PixivDB(pcfg.database_uri)
     pdl = PixivDownloader.PixivDownloader(
         pcfg.workdir / 'works', logger=pcfg.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
-        print('Downloading all bookmarks...')
+        logger.info('Downloading all bookmarks...')
     elif download_type == 'user':
-        print('Downloading user\'s works...')
+        logger.info('Downloading user\'s works...')
     if not user:
         user = papi.pixiv_user_id
     pdl.all_works(download_type, papi, pdb.get_session(), user, max_times,
                   works_type, tags_include, tags_exclude)
 
-    time.sleep(3)
     while True:
         if pdl.dq.unfinished_tasks:
             time.sleep(0.1)
         else:
             break
 
-    print('JOIN')
     pdl.dq.join()
 
 
