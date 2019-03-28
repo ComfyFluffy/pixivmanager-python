@@ -462,37 +462,41 @@ class PixivDB:
             Base.metadata.create_all(self.engine)
         self.sessionmaker = sessionmaker(bind=self.engine)
 
-    @contextmanager
-    def get_session(self, readonly=False):
-        def no_write(*args, **kwargs):
-            print('Tried to write in read-only session.')
+    def get_session(self):
+        return self.sessionmaker()
 
-        s = self.sessionmaker()
-        _readonly = bool(readonly)
-        if _readonly:
-            s.flush = no_write
-            s.commit = no_write
-        print(readonly)
-        try:
-            yield s
-            print('COMMIT')
-            if not _readonly:
-                s.commit()
-        except:
-            s.rollback()
-            raise
-        finally:
-            print('CLOSE')
-            s.close()
+    # @contextmanager
+    # def get_session(self, readonly=False):
+    #     def no_write(*args, **kwargs):
+    #         return
+    #         print('Tried to write in read-only session.')
 
-    def get_session2(self, readonly=False):
-        def no_write(*args, **kwargs):
-            print('Tried to write in read-only session.')
+    #     s = self.sessionmaker()
+    #     _readonly = bool(readonly)
+    #     if _readonly:
+    #         s.flush = no_write
+    #         s.commit = no_write
+    #     print(readonly)
+    #     try:
+    #         yield s
+    #         print('COMMIT')
+    #         if not _readonly:
+    #             s.commit()
+    #     except:
+    #         s.rollback()
+    #         raise
+    #     finally:
+    #         print('CLOSE')
+    #         s.close()
 
-        s = self.sessionmaker()
-        if readonly:
-            s.flush = no_write
-            s.commit = no_write
+    # def get_session2(self, readonly=False):
+    #     def no_write(*args, **kwargs):
+    #         print('Tried to write in read-only session.')
+
+    #     s = self.sessionmaker()
+    #     if readonly:
+    #         s.flush = no_write
+    #         s.commit = no_write
 
 
 if __name__ == "__main__":
