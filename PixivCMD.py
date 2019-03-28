@@ -82,7 +82,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         logger.info('Downloading user\'s works...')
     if not user:
         user = papi.pixiv_user_id
-    pdl.all_works(download_type, papi, pdb.get_session(), user, max_times,
+    pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
                   works_type, tags_include, tags_exclude)
 
     while True:

@@ -10,12 +10,16 @@ from functools import wraps
 from pathlib import Path
 
 HTTP_HEADERS = {
-    'App-OS': 'android',
-    'App-OS-Version': '8.1.0',
-    'App-Version': '5.0.112',
+    'App-OS':
+    'android',
+    'App-OS-Version':
+    '8.1.0',
+    'App-Version':
+    '5.0.112',
     'User-Agent':
     'PixivAndroidApp/5.0.112 (Android 8.1.0; Android SDK built for x86)',
-    'Referer': 'https://app-api.pixiv.net/'
+    'Referer':
+    'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
@@ -117,6 +121,7 @@ class PixivConfig:
         self.cfg = {**DEFAULT_CFG, **loaded_cfg}
         self.validate_cfg()
         self.workdir = Path(self.cfg['workdir'])
+        os.makedirs(self.workdir, exist_ok=True)
 
         if loaded_cfg != self.cfg:
             self.save_cfg()
