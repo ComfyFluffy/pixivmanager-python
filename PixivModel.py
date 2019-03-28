@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import datetime
 
 from sqlalchemy import (FLOAT, BigInteger, Boolean, Column, ForeignKey,
@@ -87,8 +88,8 @@ class Works(Base):
     create_date = Column(IntegerTimestamp)
     insert_date = Column(IntegerTimestamp, default=datetime.now)
 
-    local = relationship('WorksLocal', uselist=False)
     author = relationship('User', back_populates='works')
+    local = relationship('WorksLocal', uselist=False)
     ugoira = relationship('Ugoira', uselist=False)
     caption = relationship('WorksCaption', uselist=False)
     image_urls = relationship('WorksImageURLs')
@@ -97,11 +98,9 @@ class Works(Base):
     custom_tags = relationship(
         'CustomTag', secondary=works_custom_tags_table, backref='works')
 
-    # def __str__(self):
-    #     return f'PixivWorks: {self.works_id} | {self.title}'
-
     def __repr__(self):
-        return f'PixivWorks(works_id={self.works_id}, author_id={self.author_id}, title={self.title})'
+        return 'PixivWorks(works_id=%s, author_id=%s, title=%r)' % (
+            self.works_id, self.author_id, self.title)
 
     @classmethod
     def from_json(cls,
@@ -187,9 +186,6 @@ class WorksLocal(Base):
 
 
 class User(Base):
-    '''
-    user_id, name, account, is_followed, total_illusts, total_manga, total_novels,(insert_date)
-    '''
     __tablename__ = 'users'
 
     local_id = Column(Integer, primary_key=True)
@@ -204,11 +200,9 @@ class User(Base):
 
     works = relationship('Works', back_populates='author')
 
-    # def __str__(self):
-    #     return f'PixivUser: {self.user_id} | {self.name}'
-
     def __repr__(self):
-        return f'PixivUser(user_id={self.user_id}, name={self.name}, account={self.account}, local_id={self.local_id})'
+        return 'PixivUser(user_id=%r, name=%r, account=%r, local_id=%r)' % (
+            self.user_id, self.name, self.account, self.local_id)
 
     @classmethod
     def from_json(cls, session: Session, json_info, save_to_session=True):
@@ -468,8 +462,37 @@ class PixivDB:
             Base.metadata.create_all(self.engine)
         self.sessionmaker = sessionmaker(bind=self.engine)
 
-    def get_session(self):
-        return self.sessionmaker()
+    @contextmanager
+    def get_session(self, readonly=False):
+        def no_write(*args, **kwargs):
+            print('Tried to write in read-only session.')
+
+        s = self.sessionmaker()
+        _readonly = bool(readonly)
+        if _readonly:
+            s.flush = no_write
+            s.commit = no_write
+        print(readonly)
+        try:
+            yield s
+            print('COMMIT')
+            if not _readonly:
+                s.commit()
+        except:
+            s.rollback()
+            raise
+        finally:
+            print('CLOSE')
+            s.close()
+
+    def get_session2(self, readonly=False):
+        def no_write(*args, **kwargs):
+            print('Tried to write in read-only session.')
+
+        s = self.sessionmaker()
+        if readonly:
+            s.flush = no_write
+            s.commit = no_write
 
 
 if __name__ == "__main__":

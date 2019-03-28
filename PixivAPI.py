@@ -5,7 +5,7 @@ from logging import Logger
 import requests
 
 import PixivException
-from PixivConfig import HTTP_HEADERS, init_logger, _retry
+from PixivConfig import HTTP_HEADERS, _retry, init_logger
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
