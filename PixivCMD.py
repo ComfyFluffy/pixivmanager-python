@@ -57,8 +57,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         exit(-1)
 
     pcfg = PixivConfig.PixivConfig('config.json')
-    # logger = pcfg.get_logger('PixivCMD')
-    papi = PixivAPI.PixivAPI(pcfg.get_logger('PixivAPI'))
+    papi = PixivAPI.PixivAPI(logger=pcfg.get_logger('PixivAPI'))
 
     if pcfg.cfg['pixiv']['refresh_token']:
         login_result = papi.login(

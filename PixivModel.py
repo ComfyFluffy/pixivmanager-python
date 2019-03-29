@@ -43,33 +43,35 @@ class IntegerTimestamp(TypeDecorator):
 
 
 works_tags_table = Table(
-    'works_tags', Base.metadata,
+    'works_tags', Base.metadata,\
+    Column('row_id', Integer, primary_key=True),
     Column(
         'works_id',
         Integer,
         ForeignKey('works.works_id'),
         index=True,
-        primary_key=True),
+        nullable=False),
     Column(
         'tag_id',
         Integer,
         ForeignKey('tags.tag_id'),
         index=True,
-        primary_key=True))
+        nullable=False))
 works_custom_tags_table = Table(
     'works_custom_tags', Base.metadata,
+    Column('row_id', Integer, primary_key=True),
     Column(
         'works_id',
         Integer,
         ForeignKey('works.works_id'),
         index=True,
-        primary_key=True),
+        nullable=False),
     Column(
         'tag_id',
         Integer,
         ForeignKey('custom_tags.tag_id'),
         index=True,
-        primary_key=True))
+        nullable=False))
 
 
 class Works(Base):
@@ -410,10 +412,8 @@ class Tag(Base):
     def from_tags_text_list(cls,
                             session: Session,
                             tags: list,
-                            save_to_session=True,
-                            cache=None):
+                            save_to_session=True):
         l = []
-        # from_cache = False
         _tags = list(dict.fromkeys(tags))
         for ts in _tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
@@ -446,7 +446,7 @@ class CustomTag(Base):
     def from_tags_text_list(cls,
                             session: Session,
                             tags: list,
-                            save_to_session=False):
+                            save_to_session=True):
         l = []
         for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()

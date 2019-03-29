@@ -74,8 +74,7 @@ class PixivDownloader:
 
     @PixivConfig._retry((requests.RequestException,
                          PixivException.DownloadError, zipfile.BadZipFile),
-                        error_msg='Unable to download file. Retrying...',
-                        logger=logger)
+                        error_msg='Unable to download file. Retrying...')
     def _download(self, url: str, download_dir: Path, ugoira_info):
         filename: str = url.split('/')[-1].split('?')[0]
         parent_dir: Path = self.root_download_dir / download_dir

@@ -101,7 +101,7 @@ class PixivAPI:
         delay=1,
         tries=8,
         error_msg='API network error! Retrying...',
-        logger=logger)
+        print_traceback=False)
     def _get_url(self, url):
         self.logger.debug('Accessed url: %s' % url)
         if not self.s.headers.get('Authorization'):

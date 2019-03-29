@@ -77,29 +77,36 @@ def _retry(exception,
            delay=3,
            backoff=2,
            error_msg=None,
-           logger=None,
+           logger=0,
            print_traceback=True):
     def deco_retry(f):
+        _logger = logger
+
         @wraps(f)
         def f_retry(*args, **kwargs):
-            _tries, _delay = tries, delay
-            while _tries > 1:
+            if not _logger:
+                logger: logging.Logger = getattr(args[0], 'logger', None)
+            else:
+                logger = _logger
+            while tries > 1:
                 try:
                     return f(*args, **kwargs)
                 except exception:
-                    _tries -= 1
+                    tries -= 1
 
                     if print_traceback and logger and error_msg:
                         logger.exception(error_msg)
                     elif logger and error_msg:
+                        logger.error(exception)
                         logger.error(error_msg)
                     elif error_msg:
+                        print(exception)
                         print(error_msg)
                     if print_traceback and not logger:
                         traceback.print_exc()
 
-                    time.sleep(_delay)
-                    _delay *= backoff
+                    time.sleep(delay)
+                    delay *= backoff
 
             return f(*args, **kwargs)
 
