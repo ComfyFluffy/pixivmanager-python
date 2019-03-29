@@ -84,15 +84,16 @@ def _retry(exception,
 
         @wraps(f)
         def f_retry(*args, **kwargs):
+            _tries, _delay = tries, delay
             if not _logger:
                 logger: logging.Logger = getattr(args[0], 'logger', None)
             else:
                 logger = _logger
-            while tries > 1:
+            while _tries > 1:
                 try:
                     return f(*args, **kwargs)
                 except exception:
-                    tries -= 1
+                    _tries -= 1
 
                     if print_traceback and logger and error_msg:
                         logger.exception(error_msg)
@@ -105,8 +106,8 @@ def _retry(exception,
                     if print_traceback and not logger:
                         traceback.print_exc()
 
-                    time.sleep(delay)
-                    delay *= backoff
+                    time.sleep(_delay)
+                    _delay *= backoff
 
             return f(*args, **kwargs)
 
