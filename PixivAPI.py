@@ -98,6 +98,8 @@ class PixivAPI:
 
     @_retry(
         requests.RequestException,
+        delay=1,
+        tries=8,
         error_msg='API network error! Retrying...',
         logger=logger)
     def _get_url(self, url):

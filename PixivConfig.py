@@ -10,16 +10,12 @@ from functools import wraps
 from pathlib import Path
 
 HTTP_HEADERS = {
-    'App-OS':
-    'android',
-    'App-OS-Version':
-    '8.1.0',
-    'App-Version':
-    '5.0.112',
+    'App-OS': 'android',
+    'App-OS-Version': '8.1.0',
+    'App-Version': '5.0.112',
     'User-Agent':
     'PixivAndroidApp/5.0.112 (Android 8.1.0; Android SDK built for x86)',
-    'Referer':
-    'https://app-api.pixiv.net/'
+    'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
@@ -79,18 +75,20 @@ def init_logger(logger_name, log_file=None) -> logging.Logger:
 def _retry(exception,
            tries=5,
            delay=3,
+           backoff=2,
            error_msg=None,
            logger=None,
            print_traceback=True):
     def deco_retry(f):
         @wraps(f)
         def f_retry(*args, **kwargs):
-            _tries = tries
+            _tries, _delay = tries, delay
             while _tries > 1:
                 try:
                     return f(*args, **kwargs)
                 except exception:
                     _tries -= 1
+
                     if print_traceback and logger and error_msg:
                         logger.exception(error_msg)
                     elif logger and error_msg:
@@ -100,7 +98,9 @@ def _retry(exception,
                     if print_traceback and not logger:
                         traceback.print_exc()
 
-                    time.sleep(delay)
+                    time.sleep(_delay)
+                    _delay *= backoff
+
             return f(*args, **kwargs)
 
         return f_retry

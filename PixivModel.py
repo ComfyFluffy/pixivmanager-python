@@ -159,7 +159,7 @@ class Works(Base):
 class WorksLocal(Base):
     __tablename__ = 'works_local'
 
-    local_id = Column(Integer, primary_key=True)
+    local_id = Column(Integer, primary_key=True, index=True)
     works_id = Column(
         Integer,
         ForeignKey('works.works_id'),
@@ -258,7 +258,7 @@ class Ugoira(Base):
                   session: Session,
                   works_id,
                   ugoira_json,
-                  save_to_session=True):
+                  save_to_session=False):
         _delay = [f['delay'] for f in ugoira_json['ugoira_metadata']['frames']]
 
         kv = {
@@ -309,7 +309,7 @@ class WorksImageURLs(Base):
                   works_id,
                   page,
                   create_if_not_exist=True,
-                  save_to_session=True):
+                  save_to_session=False):
         o = session.query(cls).filter(cls.works_id == works_id,
                                       cls.page == page).one_or_none()
         if not o and create_if_not_exist:
@@ -322,7 +322,7 @@ class WorksImageURLs(Base):
     def from_works_json(cls,
                         session: Session,
                         works_json_info,
-                        save_to_session=True):
+                        save_to_session=False):
         r = []
         if works_json_info['page_count'] > 1 and works_json_info['meta_pages']:
             for page, u in enumerate(works_json_info['meta_pages']):
@@ -381,7 +381,7 @@ class WorksCaption(Base):
             % (self.works_id, str(self.caption_text)[:20])
 
     @classmethod
-    def get_by_id(cls, session: Session, works_id, save_to_session=True):
+    def get_by_id(cls, session: Session, works_id, save_to_session=False):
         o = session.query(cls).filter(cls.works_id == works_id).one_or_none()
         if not o:
             o = cls(works_id=works_id)
@@ -410,9 +410,12 @@ class Tag(Base):
     def from_tags_text_list(cls,
                             session: Session,
                             tags: list,
-                            save_to_session=True):
+                            save_to_session=True,
+                            cache=None):
         l = []
-        for ts in tags:
+        # from_cache = False
+        _tags = list(dict.fromkeys(tags))
+        for ts in _tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
             if not t:
                 t = cls(tag_text=ts)
@@ -443,7 +446,7 @@ class CustomTag(Base):
     def from_tags_text_list(cls,
                             session: Session,
                             tags: list,
-                            save_to_session=True):
+                            save_to_session=False):
         l = []
         for ts in tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
@@ -457,13 +460,10 @@ class CustomTag(Base):
 
 class PixivDB:
     def __init__(self, database_uri: str, create_tables=True, **kwargs):
-        self.engine = create_engine(database_uri, **kwargs)
+        self.engine = create_engine(database_uri, pool_pre_ping=True, **kwargs)
         if create_tables:
             Base.metadata.create_all(self.engine)
         self.sessionmaker = sessionmaker(bind=self.engine)
-
-    # def get_session(self):
-    #     return self.sessionmaker()
 
     @contextmanager
     def get_session(self, readonly=False):

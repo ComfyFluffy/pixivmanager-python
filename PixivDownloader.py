@@ -148,30 +148,30 @@ class PixivDownloader:
         next_url = True
         works_ids = []
         users_new = []
-        users_dict = {
-            w['user']['id']: w['user']
-            for w in r['illusts'] if w['visible']
-        }
-
-        for u in users_dict.values():
-            unew = User.create_if_empty(
-                session,
-                u['id'],
-                name=u['name'],
-                account=u['account'],
-                is_followed=u['is_followed'])
-            if unew:
-                users_new.append(unew)
-        session.commit()
 
         while next_url:
             n += len(r['illusts'])
             self.logger.info('Got works: %s' % n)
 
+            users_dict = {
+                w['user']['id']: w['user']
+                for w in r['illusts'] if w['visible']
+            }
+            for u in users_dict.values():
+                unew = User.create_if_empty(
+                    session,
+                    u['id'],
+                    name=u['name'],
+                    account=u['account'],
+                    is_followed=u['is_followed'])
+                if unew:
+                    users_new.append(u['id'])
+
             for wj in r['illusts']:
                 if not wj['visible']:
                     self.logger.warn('Works %s is invisible!' % wj['id'])
                     continue
+
                 ugoira_json = papi.raw_ugoira_metadata(wj['id']).json() \
                     if wj['type'] == 'ugoira' else None
                 works = Works.from_json(session, wj, ugoira_json=ugoira_json)
@@ -188,7 +188,7 @@ class PixivDownloader:
                     }
                 else:
                     ugoira_info = None
-                works_tags = {t.tag_text for t in works.tags}
+                works_tags = {t['name'] for t in wj['tags']}
                 if works_type and works.works_type != works_type \
                 or tags_include and not tags_include.issubset(works_tags) \
                 or tags_exclude and tags_exclude.issubset(works_tags):
@@ -214,8 +214,9 @@ class PixivDownloader:
         if users_new:
             self.logger.info('Updating users info...')
             for u in users_new:
-                self.logger.info('Updating user: %s' % u.user_id)
-                User.from_json(session, papi.raw_user_detail(u.user_id).json())
+                self.logger.info('Updating user: %s' % u)
+                User.from_json(session, papi.raw_user_detail(u).json())
+                session.flush()
             session.commit()
 
     def all_works(self,
