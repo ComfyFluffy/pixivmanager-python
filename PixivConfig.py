@@ -75,9 +75,9 @@ def init_logger(logger_name, log_file=None) -> logging.Logger:
 def _retry(exception,
            tries=5,
            delay=3,
-           backoff=2,
+           backoff=1,
            error_msg=None,
-           logger=0,
+           logger=None,
            print_traceback=True):
     def deco_retry(f):
         _logger = logger
@@ -98,11 +98,11 @@ def _retry(exception,
                     if print_traceback and logger and error_msg:
                         logger.exception(error_msg)
                     elif logger and error_msg:
-                        logger.error(exception)
-                        logger.error(error_msg)
+                        logger.warning(error_msg)
+                        logger.warning(exception)
                     elif error_msg:
-                        print(exception)
                         print(error_msg)
+                        print(exception)
                     if print_traceback and not logger:
                         traceback.print_exc()
 

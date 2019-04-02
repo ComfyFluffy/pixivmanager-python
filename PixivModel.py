@@ -23,7 +23,7 @@ def dict_setattr(obj, d: dict):
 
 @compiles(String, 'sqlite')
 def skip_sqlite_collation(element, compiler, **kwargs):
-    element.collation = ''
+    element.collation = None
     return compiler.visit_VARCHAR(element, **kwargs)
 
 
@@ -81,7 +81,7 @@ class Works(Base):
     author_id = Column(
         Integer, ForeignKey('users.user_id'), index=True, nullable=False)
     works_type = Column(String(15))
-    title = Column(String(255))
+    title = Column(String(256))
     page_count = Column(Integer)
     total_views = Column(Integer)
     total_bookmarks = Column(Integer)
@@ -113,9 +113,8 @@ class Works(Base):
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
-        _save = not save_to_session
         if j.get('caption'):
-            _caption = WorksCaption.get_by_id(session, j['id'], _save)
+            _caption = WorksCaption.get_by_id(session, j['id'])
             _caption.caption_text = j['caption']
         if j.get('total_bookmarks') and j.get('total_view'):
             _bookmark_rate = round(j['total_bookmarks'] / j['total_view'], 5)
@@ -124,7 +123,7 @@ class Works(Base):
                                             [t['name'] for t in j['tags']])
         if j.get('create_date'):
             _create_date = iso_to_datetime(j.get('create_date'))
-        _image_urls = WorksImageURLs.from_works_json(session, j, _save)
+        _image_urls = WorksImageURLs.from_works_json(session, j)
 
         kv = {
             'works_id': j['id'],
@@ -145,8 +144,7 @@ class Works(Base):
         if _image_urls:
             kv['image_urls'] = _image_urls
         if ugoira_json:
-            kv['ugoira'] = Ugoira.from_json(session, j['id'], ugoira_json,
-                                            _save)
+            kv['ugoira'] = Ugoira.from_json(session, j['id'], ugoira_json)
         w = session.query(cls).filter(
             cls.works_id == kv['works_id']).one_or_none()
         if not w:
@@ -192,8 +190,8 @@ class User(Base):
 
     local_id = Column(Integer, primary_key=True)
     user_id = Column(Integer, index=True, nullable=False, unique=True)
-    name = Column(String(255))
-    account = Column(String(255))
+    name = Column(String(256))
+    account = Column(String(256))
     is_followed = Column(Boolean)
     total_illusts = Column(Integer)
     total_manga = Column(Integer)
@@ -241,7 +239,7 @@ class Ugoira(Base):
 
     works_id = Column(Integer, ForeignKey('works.works_id'), primary_key=True)
     delay_text = Column(Text)
-    zip_url = Column(String(255))
+    zip_url = Column(String(256))
 
     _delay = []
 
@@ -300,10 +298,10 @@ class WorksImageURLs(Base):
     works_id = Column(
         Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
     page = Column(Integer, primary_key=True)
-    square_medium = Column(String(255))
-    medium = Column(String(255))
-    large = Column(String(255))
-    original = Column(String(255))
+    square_medium = Column(String(256))
+    medium = Column(String(256))
+    large = Column(String(256))
+    original = Column(String(256))
 
     @classmethod
     def get_by_id(cls,
@@ -397,10 +395,12 @@ class Tag(Base):
 
     tag_id = Column(Integer, primary_key=True)
     tag_text = Column(
-        String(255, collation='utf8mb4_0900_as_cs'),
+        String(256, collation='utf8mb4_0900_as_cs'),
         index=True,
         nullable=False,
         unique=True)
+
+    translation = relationship('TagTranslation')
 
     def __str__(self):
         return str(self.tag_text)
@@ -424,13 +424,29 @@ class Tag(Base):
             l.append(t)
         return l
 
+    # def get_translation(self, lang: str):
+    #     pass
+
+
+class TagTranslation(Base):
+    __tablename__ = 'tag_translations'
+
+    tag_id = Column(
+        Integer, ForeignKey('tags.tag_id'), primary_key=True, index=True)
+    lang = Column(String(16), primary_key=True)
+    translation_text = Column(String(256), nullable=False)
+
+    def __repr__(self):
+        return 'TagTranslation(tag_id=%s, lang=%r, translation_text=%r)' % (
+            self.tag_id, self.lang, self.translation_text)
+
 
 class CustomTag(Base):
     __tablename__ = 'custom_tags'
 
     tag_id = Column(Integer, primary_key=True)
     tag_text = Column(
-        String(255, collation='utf8mb4_0900_as_cs'),
+        String(256, collation='utf8mb4_0900_as_cs'),
         index=True,
         nullable=False,
         unique=True)
@@ -441,21 +457,6 @@ class CustomTag(Base):
     def __repr__(self):
         return 'CustomTag(tag_id=%r, tag_text=%r)' % (self.tag_id,
                                                       self.tag_text)
-
-    @classmethod
-    def from_tags_text_list(cls,
-                            session: Session,
-                            tags: list,
-                            save_to_session=True):
-        l = []
-        for ts in tags:
-            t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
-            if not t:
-                t = cls(tag_text=ts)
-                if save_to_session:
-                    session.add(t)
-            l.append(t)
-        return l
 
 
 class PixivDB:

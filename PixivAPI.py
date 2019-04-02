@@ -60,7 +60,7 @@ class PixivAPI:
             datas['grant_type'] = 'password'
             datas['username'] = username
             datas['password'] = password
-            login_result = self.s.post(auth_url, data=datas, timeout=TIMEOUT)
+            login_result = self.s.post(auth_url, data=datas, timeout=TIMEOUT) #TODO set post as get_url()
             if login_result.status_code == 200:
                 return on_succeed(login_result)
             else:
