@@ -429,7 +429,7 @@ class Tag(Base):
 
 
 class TagTranslation(Base):
-    __tablename__ = 'tag_translations'
+    __tablename__ = 'tags_translation'
 
     tag_id = Column(
         Integer, ForeignKey('tags.tag_id'), primary_key=True, index=True)

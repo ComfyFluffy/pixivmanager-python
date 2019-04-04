@@ -74,7 +74,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     logger = pcfg.get_logger('PixivCMD')
     pdb = PixivModel.PixivDB(pcfg.database_uri)
     pdl = PixivDownloader.PixivDownloader(
-        pcfg.workdir / 'works', logger=pcfg.get_logger('PixivDownloader'))
+        pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
         logger.info('Downloading all bookmarks...')
     elif download_type == 'user':

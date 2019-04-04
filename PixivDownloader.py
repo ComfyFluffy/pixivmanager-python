@@ -237,6 +237,3 @@ class PixivDownloader:
         if res:
             self._analyze_res(res, papi, session, max_get_times, works_type,
                               tags_include, tags_exclude)
-
-
-#TODO Move helper into downloader

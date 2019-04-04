@@ -12,31 +12,40 @@ from pathlib import Path
 HTTP_HEADERS = {
     'App-OS': 'android',
     'App-OS-Version': '8.1.0',
-    'App-Version': '5.0.112',
+    'App-Version': '5.0.132',
     'User-Agent':
-    'PixivAndroidApp/5.0.112 (Android 8.1.0; Android SDK built for x86)',
+    'PixivAndroidApp/5.0.132 (Android 8.1.0; Android SDK built for x86)',
     'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
 DEFAULT_CFG = {
-    'workdir':
-    'storage',  # Directory to save downloaded works amd database files
+    'storage_dir': 'storage',
+    # Directory to save downloaded works amd database files
+    'pixiv_works_dir': '',
+    # Saved Pixiv works
+    # Defult: (storage_dir)/works
+    # Structure
+    # Single page: /(user_id)/(works_id)_p0.(png)
+    # Multi page /user_id/(works_id)/(works_id)_p(x).(png)
     'debug': False,
     'pixiv': {
-        'refresh_token': ''  # Refresh token for auto relogin
+        'refresh_token': ''
+        # Refresh token for auto relogin
     },
     'downloader': {
-        'threads': 5  #Image downloader threads
+        'threads': 5
+        #Image downloader threads
     },
     'web_ui': {
         'ip': '127.0.0.1',  # Web server listened IP
         'port': 5266,  # Web server listened port
-        'thumbnail_cache':
-        True  # Enable thumbnail cache for better performance
+        'thumbnail_cache': True
+        # Enable thumbnail cache for better performance
     },
     'database': {
-        'method': 'sqlite',  # sqlite or mysql
+        'method': 'sqlite',
+        # sqlite or mysql
         'mysql': {
             'username': 'root',
             'password': '',
@@ -116,6 +125,18 @@ def _retry(exception,
     return deco_retry
 
 
+def time_checker(f):
+    @wraps(f)
+    def f_do(*args, **kwargs):
+        try:
+            t1 = datetime.now()
+            return f(*args, **kwargs)
+        finally:
+            print(f.__name__, datetime.now() - t1)
+
+    return f_do
+
+
 class PixivConfig:
     def __init__(self, cfg_json_file):
         self.cfg_json_file = Path(cfg_json_file)
@@ -128,14 +149,18 @@ class PixivConfig:
 
         self.cfg = {**DEFAULT_CFG, **loaded_cfg}
         self.validate_cfg()
-        self.workdir = Path(self.cfg['workdir'])
-        os.makedirs(self.workdir, exist_ok=True)
+        self.storage_dir = Path(self.cfg['storage_dir'])
+        _pixiv_works_dir = self.cfg['pixiv_works_dir']
+        self.pixiv_works_dir = Path(
+            _pixiv_works_dir
+        ) if _pixiv_works_dir else self.storage_dir / 'pixiv_works'
+        os.makedirs(self.storage_dir, exist_ok=True)
 
         if loaded_cfg != self.cfg:
             self.save_cfg()
 
     def validate_cfg(self):
-        assert type(self.cfg['workdir']) is str
+        assert type(self.cfg['storage_dir']) is str
         assert type(self.cfg['debug']) is bool
         assert type(self.cfg['web_ui']['ip']) is str
         assert type(self.cfg['web_ui']['port']) is int
@@ -148,15 +173,19 @@ class PixivConfig:
             json.dump(self.cfg, cf, ensure_ascii=False, indent=4)
 
     def get_logger(self, logger_name, log_file='PixivManager.log'):
-        return init_logger(logger_name, self.workdir / log_file)
+        return init_logger(logger_name, self.storage_dir / log_file)
 
     @property
     def database_uri(self):
         if self.cfg['database']['method'] == 'sqlite':
-            return 'sqlite:///%s' % (self.workdir / 'pixivmanager.sqlite.db')
+            return 'sqlite:///%s' % (
+                self.storage_dir / 'pixivmanager.sqlite.db')
         else:
             d_mysql = self.cfg['database']['mysql']
             return 'mysql://%s:%s@%s/%s?charset=utf8mb4' % (
                 d_mysql['username'],
                 urllib.parse.quote_plus(
                     d_mysql['password']), d_mysql['host'], d_mysql['database'])
+
+if __name__ == "__main__":
+    PixivConfig('config.json')
