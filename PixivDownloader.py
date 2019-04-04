@@ -168,7 +168,7 @@ class PixivDownloader:
 
             for wj in r['illusts']:
                 if not wj['visible']:
-                    self.logger.warn('Works %s is invisible!' % wj['id'])
+                    self.logger.warning('Works %s is invisible!' % wj['id'])
                     continue
 
                 ugoira_json = papi.raw_ugoira_metadata(wj['id']).json() \

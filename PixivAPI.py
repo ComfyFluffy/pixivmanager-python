@@ -26,6 +26,7 @@ class PixivAPI:
             self.logger = logger
         self.s = requests.Session()
         self.s.headers = dict(HTTP_HEADERS)
+        self.pixiv_user_id = -1
 
         if False:
             self.s.proxies = proxy
@@ -60,7 +61,9 @@ class PixivAPI:
             datas['grant_type'] = 'password'
             datas['username'] = username
             datas['password'] = password
-            login_result = self.s.post(auth_url, data=datas, timeout=TIMEOUT) #TODO set post as get_url()
+            login_result = self.s.post(
+                auth_url, data=datas,
+                timeout=TIMEOUT)  #TODO set post as get_url()
             if login_result.status_code == 200:
                 return on_succeed(login_result)
             else:

@@ -9,6 +9,8 @@ from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
+import coloredlogs
+
 HTTP_HEADERS = {
     'App-OS': 'android',
     'App-OS-Version': '8.1.0',
@@ -46,6 +48,7 @@ DEFAULT_CFG = {
     'database': {
         'method': 'sqlite',
         # sqlite or mysql
+        # SQLite file: (storage_dir)/pixivmanager.sqlite.db
         'mysql': {
             'username': 'root',
             'password': '',
@@ -54,14 +57,28 @@ DEFAULT_CFG = {
         }
     }
 }
+CF_LOGGER_FORMAT = '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s'
+CH_LOGGER_FORMAT = '[%(asctime)s] %(name)s %(message)s'
+loaded_colorama = False
 
 
 def cd_script_dir():
-    os.chdir(os.path.dirname(sys.argv[0]))
+    p = os.path.dirname(sys.argv[0])
+    if p:
+        os.chdir(p)
 
 
 def iso_to_datetime(date_str):
     return datetime.strptime(date_str, ISO_TIME_FORMAT)
+
+
+def init_colorama():
+    global loaded_colorama
+    if loaded_colorama:
+        return
+    import colorama
+    colorama.init()
+    loaded_colorama = True
 
 
 def init_logger(logger_name, log_file=None) -> logging.Logger:
@@ -69,15 +86,18 @@ def init_logger(logger_name, log_file=None) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
-    logger_formatter = logging.Formatter(
-        '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s')
-    ch.setFormatter(logger_formatter)
+    if os.name == 'nt':
+        init_colorama()
+    ch_logger_formatter = coloredlogs.ColoredFormatter(CH_LOGGER_FORMAT)
+    ch.setFormatter(ch_logger_formatter)
     logger.addHandler(ch)
+
     if log_file:
         cf = logging.FileHandler(filename=log_file, encoding='utf-8')
         cf.setLevel(logging.DEBUG)
-        cf.setFormatter(logger_formatter)
+        cf.setFormatter(logging.Formatter(CF_LOGGER_FORMAT))
         logger.addHandler(cf)
+
     return logger
 
 
@@ -161,6 +181,7 @@ class PixivConfig:
 
     def validate_cfg(self):
         assert type(self.cfg['storage_dir']) is str
+        assert type(self.cfg['pixiv_works_dir']) is str
         assert type(self.cfg['debug']) is bool
         assert type(self.cfg['web_ui']['ip']) is str
         assert type(self.cfg['web_ui']['port']) is int
@@ -186,6 +207,7 @@ class PixivConfig:
                 d_mysql['username'],
                 urllib.parse.quote_plus(
                     d_mysql['password']), d_mysql['host'], d_mysql['database'])
+
 
 if __name__ == "__main__":
     PixivConfig('config.json')

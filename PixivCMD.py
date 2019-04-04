@@ -91,6 +91,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
             break
 
     pdl.dq.join()
+    logger.info('Works download task for user %s done!' % papi.pixiv_user_id)
 
 
 if __name__ == '__main__':
