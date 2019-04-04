@@ -1,27 +1,26 @@
-'''
-A simple CMD tool for bookmarks download and user's works download.
-Supports database updating.
-'''
+#!/usr/bin/python3
 
-import click
 import time
 
-import Config
+import click
+
 import PixivAPI
-import PixivDB
+import PixivConfig
 import PixivDownloader
-import PixivHelper
+import PixivModel
+
+PixivConfig.cd_script_dir()
 
 
 @click.command()
-@click.argument('download_type')
+@click.argument('download_type', type=click.Choice(('bookmark', 'user')))
 @click.option(
     '--user',
     default=0,
     type=click.INT,
-    help='User to download. Default yourself.')
+    help='User to download. Default is the current user.')
 @click.option(
-    '--max', 'max_times', default=-1, type=click.INT, help='Max get times.')
+    '--max', 'max_times', default=None, type=click.INT, help='Max get times.')
 @click.option('--private', is_flag=True, help='Download private bookmarks.')
 @click.option(
     '--type',
@@ -30,7 +29,7 @@ import PixivHelper
     type=click.STRING,
     help='Works type to download.\
     \nCan be illusts / manga / ugoira.')
-@click.option(
+@click.option(  #TODO https://click-docs-zh-cn.readthedocs.io/zh/latest/options.html
     '--tags-include',
     default=None,
     type=click.STRING,
@@ -40,13 +39,6 @@ import PixivHelper
     default=None,
     type=click.STRING,
     help='Exclude works by tags. Split by ;')
-@click.option(
-    '--type',
-    'works_type',
-    default=None,
-    type=click.STRING,
-    help='Works type to download.\
-    \nCan be illusts / manga / ugoira.')
 def main(user, max_times, private, download_type, works_type, tags_include,
          tags_exclude):
     '''
@@ -56,53 +48,50 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     Download type: 0: Bookmarks | 1: User's works
     '''
     try:
-        user = int(user)
-        max_times = int(max_times)
-        download_type = int(download_type)
-        tags_include = [] if not tags_include else tags_include.split(';')
-        tags_exclude = [] if not tags_exclude else tags_exclude.split(';')
+        tags_include = None if not tags_include else set(
+            tags_include.split(';'))
+        tags_exclude = None if not tags_exclude else set(
+            tags_exclude.split(';'))
     except:
         print('Value USER | MAX | DOWNLOAD_TYPE must be INT.')
         exit(-1)
 
-    papi = PixivAPI.PixivAPI()
-    refresh_token = Config.read_cfg('pixiv', 'refresh_token')
-    try:
-        if refresh_token:
-            refresh_token = Config.read_cfg('pixiv', 'refresh_token')
-            login_result = papi.login(refresh_token=refresh_token)
-        else:
-            import getpass
-            username = input('E-mail / Pixiv ID: ')
-            password = getpass.getpass()
-            login_result = papi.login(username, password)
-    except KeyboardInterrupt:
-        exit(0)
+    pcfg = PixivConfig.PixivConfig('config.json')
+    papi = PixivAPI.PixivAPI(logger=pcfg.get_logger('PixivAPI'))
 
-    if login_result != 0:
+    if pcfg.cfg['pixiv']['refresh_token']:
+        login_result = papi.login(
+            refresh_token=pcfg.cfg['pixiv']['refresh_token'])
+    else:
+        import getpass
+        username = input('E-mail / Pixiv ID: ')
+        password = getpass.getpass()
+        login_result = papi.login(username, password)
+
+    if login_result['status_code'] != 0:
         exit(-1)
-    pdb = PixivDB.PixivDB()
-    pdl = PixivDownloader.PixivDownloader()
-    user = None if user == 0 else user
-    try:
-        if download_type == 0:
-            print('Downloading all bookmarks...')
-            PixivHelper.download_all_bookmarks(user, papi, pdb, pdl, private,
-                                               max_times, works_type,
-                                               tags_include, tags_exclude)
-        elif download_type == 1:
-            print('Downloading user\'s works...')
-            PixivHelper.download_all_user(user, papi, pdb, pdl, max_times,
-                                          works_type, tags_include,
-                                          tags_exclude)
-        while True:
-            if not pdl.dq.empty():
-                time.sleep(1)
-            else:
-                break
-        pdl.dq.join()
-    except KeyboardInterrupt:
-        exit(0)
+
+    logger = pcfg.get_logger('PixivCMD')
+    pdb = PixivModel.PixivDB(pcfg.database_uri)
+    pdl = PixivDownloader.PixivDownloader(
+        pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
+    if download_type == 'bookmarks':
+        logger.info('Downloading all bookmarks...')
+    elif download_type == 'user':
+        logger.info('Downloading user\'s works...')
+    if not user:
+        user = papi.pixiv_user_id
+    pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
+                  works_type, tags_include, tags_exclude)
+
+    while True:
+        if pdl.dq.unfinished_tasks:
+            time.sleep(0.1)
+        else:
+            break
+
+    pdl.dq.join()
+    logger.info('Works download task for user %s done!' % papi.pixiv_user_id)
 
 
 if __name__ == '__main__':

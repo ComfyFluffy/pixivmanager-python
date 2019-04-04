@@ -1,5 +1,6 @@
 class PixivException(Exception):
-    pass
+    'The base exception'
+
 
 class DownloadError(PixivException):
     'Downloaded file error'

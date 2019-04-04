@@ -1,10 +1,13 @@
-/Test
 __pycache__
 /storage
 desktop.ini
 .vscode
-/config.ini
+.idea
+/config.json
 /sync.ffs_db
-/*.7z
+*.7z
 /web_ui
-test.py
+test*.py
+/.history
+/venv
+*.db
