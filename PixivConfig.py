@@ -20,6 +20,7 @@ HTTP_HEADERS = {
     'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
+VERSION_UNDER_3_7 = sys.version < '3.7'
 IMAGE_TYPES = ('jpg', 'png', 'gif')
 
 DEFAULT_CFG = {
@@ -73,7 +74,9 @@ def cd_script_dir():
         os.chdir(p)
 
 
-def iso_to_datetime(date_str):
+def iso_to_datetime(date_str: str):
+    if VERSION_UNDER_3_7:
+        date_str.replace('+09:00', '+9000')
     return datetime.strptime(date_str, ISO_TIME_FORMAT)
 
 
