@@ -27,6 +27,7 @@ class PixivAPI:
         self.s = requests.Session()
         self.s.headers = dict(HTTP_HEADERS)
         self.pixiv_user_id = -1
+        self.refresh_token = None
 
         if False:
             self.s.proxies = proxy
@@ -52,7 +53,7 @@ class PixivAPI:
             return {
                 'status_code': 0,
                 'status_message': 'OK',
-                'refresh_token': refresh_token,
+                'refresh_token': self.refresh_token,
                 'user_id': self.pixiv_user_id
             }
 
