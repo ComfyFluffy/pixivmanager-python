@@ -77,7 +77,7 @@ def cd_script_dir():
 
 def iso_to_datetime(date_str: str):
     if VERSION_UNDER_3_7:
-        date_str.replace('+09:00', '+0900')
+        date_str = date_str.replace('+09:00', '+0900')
     return datetime.strptime(date_str, ISO_TIME_FORMAT)
 
 
