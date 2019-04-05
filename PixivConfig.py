@@ -20,17 +20,21 @@ HTTP_HEADERS = {
     'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
+IMAGE_TYPES = ('jpg', 'png', 'gif')
 
 DEFAULT_CFG = {
     'storage_dir': 'storage',
     # Directory to save downloaded works amd database files
     'pixiv_works_dir': '',
     # Saved Pixiv works
-    # Defult: (storage_dir)/works
+    # Defult: (storage_dir)/illusts
     # Structure
     # Single page: /(user_id)/(works_id)_p0.(png)
     # Multi page /user_id/(works_id)/(works_id)_p(x).(png)
     'debug': False,
+    'avatars_dir': '',
+    # Avatars saving directory
+    # Default: (storage_dir)/avatars
     'pixiv': {
         'refresh_token': ''
         # Refresh token for auto relogin
@@ -57,6 +61,7 @@ DEFAULT_CFG = {
         }
     }
 }
+
 CF_LOGGER_FORMAT = '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s'
 CH_LOGGER_FORMAT = '[%(asctime)s] %(name)s %(message)s'
 loaded_colorama = False
@@ -170,11 +175,16 @@ class PixivConfig:
         self.cfg = {**DEFAULT_CFG, **loaded_cfg}
         self.validate_cfg()
         self.storage_dir = Path(self.cfg['storage_dir'])
-        _pixiv_works_dir = self.cfg['pixiv_works_dir']
         self.pixiv_works_dir = Path(
-            _pixiv_works_dir
-        ) if _pixiv_works_dir else self.storage_dir / 'pixiv_works'
+            self.cfg['pixiv_works_dir']
+        ) if self.cfg['pixiv_works_dir'] else self.storage_dir / 'works'
+        self.avatars_dir = Path(
+            self.cfg['avatars_dir']
+        ) if self.cfg['avatars_dir'] else self.storage_dir / 'avatars'
+
         os.makedirs(self.storage_dir, exist_ok=True)
+        os.makedirs(self.pixiv_works_dir, exist_ok=True)
+        os.makedirs(self.avatars_dir, exist_ok=True)
 
         if loaded_cfg != self.cfg:
             self.save_cfg()
@@ -182,6 +192,7 @@ class PixivConfig:
     def validate_cfg(self):
         assert type(self.cfg['storage_dir']) is str
         assert type(self.cfg['pixiv_works_dir']) is str
+        assert type(self.cfg['avatars_dir']) is str
         assert type(self.cfg['debug']) is bool
         assert type(self.cfg['web_ui']['ip']) is str
         assert type(self.cfg['web_ui']['port']) is int

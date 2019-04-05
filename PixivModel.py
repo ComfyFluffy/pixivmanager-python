@@ -39,7 +39,8 @@ class IntegerTimestamp(TypeDecorator):
         return int(value.timestamp()) if value else None
 
     def process_result_value(self, value, dialect):
-        return datetime.fromtimestamp(value) if value else None
+        return value
+        # return datetime.fromtimestamp(value) if value else None
 
 
 works_tags_table = Table(
@@ -105,11 +106,7 @@ class Works(Base):
             self.works_id, self.author_id, self.title)
 
     @classmethod
-    def from_json(cls,
-                  session: Session,
-                  json_info,
-                  save_to_session=True,
-                  ugoira_json=None):
+    def from_json(cls, session: Session, json_info, ugoira_json=None):
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
@@ -149,8 +146,8 @@ class Works(Base):
             cls.works_id == kv['works_id']).one_or_none()
         if not w:
             w = cls(**kv)
-            if save_to_session:
-                session.add(w)
+            # if save_to_session:
+            session.add(w)
         else:
             dict_setattr(w, kv)
         return w
@@ -172,16 +169,13 @@ class WorksLocal(Base):
                                                          self.works_id)
 
     @classmethod
-    def create_if_not_exist(cls,
-                            session: Session,
-                            works_id,
-                            save_to_session=True):
+    def create_if_not_exist(cls, session: Session, works_id):
         w = session.query(WorksLocal).filter(
             WorksLocal.works_id == works_id).one_or_none()
         if not w:
             w = cls(works_id=works_id)
-            if save_to_session:
-                session.add(w)
+            # if save_to_session:
+            session.add(w)
         return w
 
 
@@ -205,7 +199,7 @@ class User(Base):
             self.user_id, self.name, self.account, self.local_id)
 
     @classmethod
-    def from_json(cls, session: Session, json_info, save_to_session=True):
+    def from_json(cls, session: Session, json_info):
         kv = {
             'user_id': json_info['user']['id'],
             'name': json_info['user']['name'],
@@ -220,8 +214,8 @@ class User(Base):
             cls.user_id == kv['user_id']).one_or_none()
         if not u:
             u = cls(**kv)
-            if save_to_session:
-                session.add(u)
+            # if save_to_session:
+            session.add(u)
         else:
             dict_setattr(u, kv)
         return u
@@ -234,10 +228,30 @@ class User(Base):
             return new_user
 
 
+class UserImageURLs(Base):
+    __tablename__ = 'users_image_urls'
+
+    user_id = Column(
+        Integer, ForeignKey('users.user_id'), primary_key=True, index=True)
+    avatar_url = Column(String(256))
+    background_url = Column(String(256))
+
+    @classmethod
+    def update_info(cls, session: Session, user_id, **kwargs):
+        ui = session.query(cls).filter(cls.user_id == user_id).one_or_none()
+        if not ui:
+            ui = cls(user_id=user_id, **kwargs)
+            session.add(ui)
+        else:
+            dict_setattr(ui, kwargs)
+
+
 class Ugoira(Base):
     __tablename__ = 'ugoiras'
 
-    works_id = Column(Integer, ForeignKey('works.works_id'), primary_key=True)
+    works_id = Column(Integer, ForeignKey('works.works_id'), primary_key=True,index=True)
+    author_id = Column(
+        Integer, ForeignKey('users.user_id'), nullable=False)
     delay_text = Column(Text)
     zip_url = Column(String(256))
 
@@ -277,15 +291,6 @@ class Ugoira(Base):
         else:
             dict_setattr(ug, kv)
         return ug
-
-    # @classmethod
-    # def get_by_id(cls, session: Session, works_id, save_to_session=True):
-    #     o = session.query(cls).filter(cls.works_id == works_id).one_or_none()
-    #     if not o:
-    #         o = cls(works_id=works_id)
-    #         if save_to_session:
-    #             session.add(o)
-    #     return o
 
 
 class WorksImageURLs(Base):
@@ -409,18 +414,15 @@ class Tag(Base):
         return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
 
     @classmethod
-    def from_tags_text_list(cls,
-                            session: Session,
-                            tags: list,
-                            save_to_session=True):
+    def from_tags_text_list(cls, session: Session, tags: list):
         l = []
         _tags = list(dict.fromkeys(tags))
         for ts in _tags:
             t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
             if not t:
                 t = cls(tag_text=ts)
-                if save_to_session:
-                    session.add(t)
+                # if save_to_session:
+                session.add(t)
             l.append(t)
         return l
 
@@ -467,12 +469,13 @@ class PixivDB:
         self.sessionmaker = sessionmaker(bind=self.engine)
 
     @contextmanager
-    def get_session(self, readonly=False):
+    def get_session(self, readonly=False) -> Session:
         def no_write(*args, **kwargs):
-            print('Tried to write in read-only session.')
+            pass
 
-        s = self.sessionmaker()
+        s: Session = self.sessionmaker()
         if readonly:
+            s.autoflush = False
             s.flush = no_write
             s.commit = no_write
         try:
@@ -489,3 +492,4 @@ if __name__ == "__main__":
 
     pcfg = PixivConfig.PixivConfig('config.json')
     pdb = PixivDB(pcfg.database_uri, echo=True)
+    s = pdb.sessionmaker()
