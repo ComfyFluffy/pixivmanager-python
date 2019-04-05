@@ -71,6 +71,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     if login_result['status_code'] != 0:
         exit(-1)
 
+    pcfg.cfg['pixiv']['refresh_token'] = login_result['refresh_token']
+    pcfg.save_cfg()
     logger = pcfg.get_logger('PixivCMD')
     pdb = PixivModel.PixivDB(pcfg.database_uri)
     pdl = PixivDownloader.PixivDownloader(
