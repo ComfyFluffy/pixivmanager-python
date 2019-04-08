@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from logging import Logger
 
@@ -103,7 +104,7 @@ class PixivAPI:
     @_retry(
         requests.RequestException,
         delay=1,
-        tries=8,
+        tries=5,
         error_msg='API network error! Retrying...',
         print_traceback=False)
     def _get_url(self, url):
@@ -126,6 +127,7 @@ class PixivAPI:
             self.logger.warning(
                 'Status code: 403 | %s, wait for 1 min and retry...' %
                 result.text)
+            time.sleep(60)
             result = self._get_url(url)
             if result.status_code == 403:
                 self.logger.error('Still got %s ! | %s | %s' %
@@ -169,3 +171,14 @@ class PixivAPI:
             'raw_user_works')
 
     #TODO 过滤器
+
+
+if __name__ == "__main__":
+    import PixivConfig
+    import PixivAPI
+
+    pcfg = PixivConfig.PixivConfig('config.json')
+    papi = PixivAPI.PixivAPI(logger=pcfg.get_logger('PixivAPI'))
+
+    if pcfg.cfg['pixiv']['refresh_token']:
+        papi.login(refresh_token=pcfg.cfg['pixiv']['refresh_token'])

@@ -9,5 +9,7 @@ desktop.ini
 /web_ui
 test*.py
 /.history
-/venv
+/pyvenv
 *.db
+/alembic.ini
+/alembic

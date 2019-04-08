@@ -30,6 +30,13 @@ def send_local_works(path):
     return send_from_directory(pcfg.pixiv_works_dir, path)
 
 
+def get_int_list(s):
+    try:
+        return list(map(int, request.args.getlist(s)))
+    except ValueError:
+        abort(400)
+
+
 def get_image_url(user_id, works_id, page, is_multi_page, is_ugoira=False):
     lpath = pcfg.pixiv_works_dir / str(user_id)
     if is_multi_page or is_ugoira:
@@ -67,7 +74,8 @@ def works_to_json(w: PM.Works):
         'is_bookmarked': w.is_bookmarked,
         'bookmark_rate': w.bookmark_rate,
         'create_date': w.create_date,
-        'origin_image_urls': origin_image_urls
+        'origin_image_urls': origin_image_urls,
+        'caption': w.caption.caption_text
     }
     return r
 
@@ -95,33 +103,31 @@ def ugoira_to_json(ug: PM.Ugoira):
 
 class QueryWorks(Resource):
     def get(self):
-        with pdb.get_session(True) as session:
-            r = session.query(PM.Works)\
+        with pdb.get_session() as session:
+            r = session.query(PM.Works.works_id)\
                     .join(PM.WorksLocal)\
                     .order_by(PM.WorksLocal.local_id.desc())\
                     .slice(0, 30)
         print(r)
-        return [works_to_json(w) for w in r]
+        return [r[0] for w in r]
 
 
-class QueryWorksCaption(Resource):
-    def get(self):
-        works_ids = request.args.getlist('works_ids[]')
+class QueryWorksDetail(Resource):
+    def query(self, works_ids):
         if not works_ids:
             abort(400)
         with pdb.get_session() as session:
-            r = session.query(PM.WorksCaption).filter(
-                PM.WorksCaption.works_id.in_(works_ids)).all()
+            r = session.query(PM.Works).filter(
+                PM.Works.works_id.in_(works_ids)).all()
 
-        return [{
-            'works_id': wc.works_id,
-            'caption': wc.caption_text
-        } for wc in r] if r else []
+        return [works_to_json(w) for w in r] if r else []
 
-
-class QueryUsersInfo(Resource):
     def get(self):
-        user_ids = request.args.getlist('user_ids[]')
+        return self.query(get_int_list('works_ids[]'))
+
+
+class QueryUserDetail(Resource):
+    def query(self, user_ids):
         if not user_ids:
             abort(400)
         with pdb.get_session() as session:
@@ -129,6 +135,9 @@ class QueryUsersInfo(Resource):
                 PM.User.user_id.in_(user_ids)).all()
 
         return [user_to_json(u) for u in r] if r else []
+
+    def get(self):
+        return self.query(get_int_list('user_ids[]'))
 
 
 class QueryUgoira(Resource):
@@ -140,8 +149,14 @@ class QueryUgoira(Resource):
         return ugoira_to_json(r) if r else None
 
 
-api.add_resource(QueryWorksCaption, '/api/v1/query/captions')
+class QueryUser(Resource):
+    def get(self):
+        pass
+
+
 api.add_resource(QueryWorks, '/api/v1/query/works')
-api.add_resource(QueryUsersInfo, '/api/v1/query/users')
-api.add_resource(QueryUgoira, '/api/v1/query/ugoira/<int:works_id>')
+api.add_resource(QueryUser, '/api/v1/query/user')
+api.add_resource(QueryWorksDetail, '/api/v1/detail/works')
+api.add_resource(QueryUserDetail, '/api/v1/detail/user')
+api.add_resource(QueryUgoira, '/api/v1/detail/ugoira/<int:works_id>')
 app.run(debug=True)

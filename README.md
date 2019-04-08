@@ -1,6 +1,6 @@
 # PixivManager
 
-A toolset for PixivManager.
+A toolset for [Pixiv](https://www.pixiv.net/)
 
 ## Features
 

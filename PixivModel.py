@@ -187,12 +187,10 @@ class User(Base):
     name = Column(String(256))
     account = Column(String(256))
     is_followed = Column(Boolean)
-    total_illusts = Column(Integer)
-    total_manga = Column(Integer)
-    total_novels = Column(Integer)
     insert_date = Column(IntegerTimestamp, default=datetime.now)
 
     works = relationship('Works', back_populates='author')
+    detial = relationship('UserDetail', uselist=False)
 
     def __repr__(self):
         return 'PixivUser(user_id=%r, name=%r, account=%r, local_id=%r)' % (
@@ -205,16 +203,13 @@ class User(Base):
             'name': json_info['user']['name'],
             'account': json_info['user']['account'],
             'is_followed': json_info['user']['is_followed'],
-            'total_illusts': json_info['profile']['total_illusts'],
-            'total_manga': json_info['profile']['total_manga'],
-            'total_novels': json_info['profile']['total_novels']
+            'detial': UserDetail.from_user_json(session, json_info)
         }
 
         u = session.query(cls).filter(
             cls.user_id == kv['user_id']).one_or_none()
         if not u:
             u = cls(**kv)
-            # if save_to_session:
             session.add(u)
         else:
             dict_setattr(u, kv)
@@ -228,30 +223,46 @@ class User(Base):
             return new_user
 
 
-class UserImageURLs(Base):
-    __tablename__ = 'users_image_urls'
+class UserDetail(Base):
+    __tablename__ = 'users_details'
 
     user_id = Column(
         Integer, ForeignKey('users.user_id'), primary_key=True, index=True)
+    total_illusts = Column(Integer)
+    total_manga = Column(Integer)
+    total_novels = Column(Integer)
     avatar_url = Column(String(256))
     background_url = Column(String(256))
+    comment = Column(Text)
 
     @classmethod
-    def update_info(cls, session: Session, user_id, **kwargs):
-        ui = session.query(cls).filter(cls.user_id == user_id).one_or_none()
-        if not ui:
-            ui = cls(user_id=user_id, **kwargs)
-            session.add(ui)
+    def from_user_json(cls, session: Session, json_info,
+                       save_to_session=False):
+        kv = {
+            'user_id': json_info['user']['id'],
+            'total_illusts': json_info['profile']['total_illusts'],
+            'total_manga': json_info['profile']['total_manga'],
+            'total_novels': json_info['profile']['total_novels'],
+            'avatar_url': json_info['user']['profile_image_urls']['medium'],
+            'background_url': json_info['profile']['background_image_url'],
+            'comment': json_info['user']['comment']
+        }
+        u = session.query(cls).filter(
+            cls.user_id == kv['user_id']).one_or_none()
+        if not u:
+            u = cls(**kv)
+            if save_to_session:
+                session.add(u)
         else:
-            dict_setattr(ui, kwargs)
+            dict_setattr(u, kv)
+        return u
 
 
 class Ugoira(Base):
     __tablename__ = 'ugoiras'
 
-    works_id = Column(Integer, ForeignKey('works.works_id'), primary_key=True,index=True)
-    author_id = Column(
-        Integer, ForeignKey('users.user_id'), nullable=False)
+    works_id = Column(
+        Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
     delay_text = Column(Text)
     zip_url = Column(String(256))
 
@@ -469,7 +480,7 @@ class PixivDB:
         self.sessionmaker = sessionmaker(bind=self.engine)
 
     @contextmanager
-    def get_session(self, readonly=False) -> Session:
+    def get_session(self, readonly=True) -> Session:
         def no_write(*args, **kwargs):
             pass
 
