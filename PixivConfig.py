@@ -66,7 +66,7 @@ DEFAULT_CFG = {
 
 CF_LOGGER_FORMAT = '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s'
 CH_LOGGER_FORMAT = '[%(asctime)s] %(name)s %(message)s'
-loaded_colorama = False
+colorama_loaded = False
 
 
 def cd_script_dir():
@@ -82,12 +82,12 @@ def iso_to_datetime(date_str: str):
 
 
 def init_colorama():
-    global loaded_colorama
-    if loaded_colorama:
+    global colorama_loaded
+    if colorama_loaded:
         return
     import colorama
     colorama.init()
-    loaded_colorama = True
+    colorama_loaded = True
 
 
 def init_logger(logger_name, log_file=None) -> logging.Logger:

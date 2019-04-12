@@ -7,13 +7,14 @@ import click
 import PixivAPI
 import PixivConfig
 import PixivDownloader
+import PixivException
 import PixivModel
 
 PixivConfig.cd_script_dir()
 
 
 @click.command()
-@click.argument('download_type', type=click.Choice(('bookmark', 'user')))
+@click.argument('download_type', type=click.Choice(('bookmark', 'works')))
 @click.option(
     '--user',
     default=0,
@@ -59,19 +60,29 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     pcfg = PixivConfig.PixivConfig('config.json')
     papi = PixivAPI.PixivAPI(logger=pcfg.get_logger('PixivAPI'))
 
-    if pcfg.cfg['pixiv']['refresh_token']:
-        login_result = papi.login(
-            refresh_token=pcfg.cfg['pixiv']['refresh_token'])
-    else:
+    login_result = None
+
+    def login_with_pw():
         import getpass
         username = input('E-mail / Pixiv ID: ')
         password = getpass.getpass()
-        login_result = papi.login(username, password)
+        return papi.login(username, password)
 
-    if login_result['status_code'] != 0:
+    try:
+        if pcfg.cfg['pixiv']['refresh_token']:
+            login_result = papi.login(
+                refresh_token=pcfg.cfg['pixiv']['refresh_token'])
+        else:
+            login_result = login_with_pw()
+    except PixivException.LoginTokenError:
+        login_result = login_with_pw()
+    except PixivException.LoginPasswordError:
+        click.echo('Username / password error!')
+
+    if not login_result:
         exit(-1)
 
-    pcfg.cfg['pixiv']['refresh_token'] = login_result['refresh_token']
+    pcfg.cfg['pixiv']['refresh_token'] = papi.refresh_token
     pcfg.save_cfg()
     logger = pcfg.get_logger('PixivCMD')
     pdb = PixivModel.PixivDB(pcfg.database_uri)
@@ -79,18 +90,15 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
         logger.info('Downloading all bookmarks...')
-    elif download_type == 'user':
+    elif download_type == 'works':
         logger.info('Downloading user\'s works...')
     if not user:
         user = papi.pixiv_user_id
     pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
                   works_type, tags_include, tags_exclude)
 
-    while True:
-        if pdl.dq.unfinished_tasks:
-            time.sleep(0.1)
-        else:
-            break
+    while pdl.dq.unfinished_tasks:
+        time.sleep(0.1)
 
     pdl.dq.join()
     logger.info('Works download task for user %s done!' % papi.pixiv_user_id)

@@ -53,7 +53,7 @@ class PixivDownloader:
             shutil.copyfileobj(content_stream, f)
         flength = os.stat(part_image_path).st_size
         if slength and slength != flength:
-            raise PixivException.DownloadError(
+            raise PixivException.DownloadException(
                 'Downloaded file length not match!')
         part_image_path.replace(image_path)
 
@@ -73,7 +73,7 @@ class PixivDownloader:
         tgif.replace(gif)
 
     @PixivConfig._retry((requests.RequestException,
-                         PixivException.DownloadError, zipfile.BadZipFile),
+                         PixivException.DownloadException, zipfile.BadZipFile),
                         error_msg='Unable to download file. Retrying...')
     def _download(self, url: str, download_dir: Path, ugoira_info):
         filename: str = url.split('/')[-1].split('?')[0]
@@ -202,7 +202,7 @@ class PixivDownloader:
                 if max_get_times < 1:
                     break
             if next_url:
-                res = papi.get_url(next_url)
+                res = papi.get(next_url)
                 r = res.json()
 
         works_ids.reverse()
@@ -227,8 +227,8 @@ class PixivDownloader:
                   works_type: str,
                   tags_include=None,
                   tags_exclude=None):
-        assert download_type in ('user', 'bookmark')
-        if download_type == 'user':
+        assert download_type in ('works', 'bookmark')
+        if download_type == 'works':
             self.logger.info('Download user\'s works: %s' % user_id)
             res = papi.raw_user_works(user_id)
         elif download_type == 'bookmark':

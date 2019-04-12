@@ -1,6 +1,18 @@
 class PixivException(Exception):
-    'The base exception'
+    pass
 
 
-class DownloadError(PixivException):
-    'Downloaded file error'
+class DownloadException(PixivException):
+    pass
+
+
+class APIException(PixivException):
+    pass
+
+
+class LoginPasswordError(APIException):
+    pass
+
+
+class LoginTokenError(APIException):
+    pass
