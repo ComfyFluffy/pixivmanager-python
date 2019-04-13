@@ -21,14 +21,21 @@ proxy = {
 
 class PixivAPI:
     logger = init_logger('_PixivAPI_')
+    language = 'en'
+    pixiv_user_id = -1
+    refresh_token = None
 
-    def __init__(self, logger: Logger = None, save_to_db=False):
+    def __init__(self,
+                 language: str = None,
+                 logger: Logger = None,
+                 save_to_db=False):
         if logger:
             self.logger = logger
         self.s = requests.Session()
         self.s.headers = dict(HTTP_HEADERS)
-        self.pixiv_user_id = -1
-        self.refresh_token = None
+        if language:
+            self.language = language
+            self.s.headers['Accept-Language'] = language
 
         if False:
             self.s.proxies = proxy
@@ -137,8 +144,8 @@ class PixivAPI:
 
     def raw_user_detail(self, user_id):
         return self.get(
-            'https://app-api.pixiv.net/v1/user/detail?user_id=%d' % int(user_id),
-            'raw_user')
+            'https://app-api.pixiv.net/v1/user/detail?user_id=%d' %
+            int(user_id), 'raw_user')
 
     def raw_user_bookmark_first(self, user_id, private=False):
         p = 'private' if private else 'public'
@@ -158,8 +165,8 @@ class PixivAPI:
 
     def raw_user_works(self, user_id):
         return self.get(
-            'https://app-api.pixiv.net/v1/user/illusts?user_id=%d' % int(user_id),
-            'raw_user_works')
+            'https://app-api.pixiv.net/v1/user/illusts?user_id=%d' %
+            int(user_id), 'raw_user_works')
 
 
 if __name__ == "__main__":

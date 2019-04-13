@@ -58,7 +58,9 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         exit(-1)
 
     pcfg = PixivConfig.PixivConfig('config.json')
-    papi = PixivAPI.PixivAPI(logger=pcfg.get_logger('PixivAPI'))
+    papi = PixivAPI.PixivAPI(
+        language=pcfg.cfg['pixiv']['language'],
+        logger=pcfg.get_logger('PixivAPI'))
 
     login_result = None
 
@@ -69,9 +71,9 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         return papi.login(username, password)
 
     try:
-        if pcfg.cfg['pixiv']['refresh_token']:
-            login_result = papi.login(
-                refresh_token=pcfg.cfg['pixiv']['refresh_token'])
+        refresh_token = pcfg.cfg['pixiv']['refresh_token']
+        if refresh_token:
+            login_result = papi.login(refresh_token=refresh_token)
         else:
             login_result = login_with_pw()
     except PixivException.LoginTokenError:

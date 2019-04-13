@@ -13,11 +13,12 @@ import re
 import coloredlogs
 
 HTTP_HEADERS = {
+    'User-Agent':
+    'PixivAndroidApp/5.0.132 (Android 8.1.0; Android SDK built for x86)',
+    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
     'App-OS': 'android',
     'App-OS-Version': '8.1.0',
     'App-Version': '5.0.132',
-    'User-Agent':
-    'PixivAndroidApp/5.0.132 (Android 8.1.0; Android SDK built for x86)',
     'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
@@ -38,8 +39,10 @@ DEFAULT_CFG = {
     # Avatars saving directory
     # Default: (storage_dir)/avatars
     'pixiv': {
-        'refresh_token': ''
+        'refresh_token': '',
         # Refresh token for auto relogin
+        'language': 'en'
+        # Language for getting translated tags, etc.
     },
     'downloader': {
         'threads': 5

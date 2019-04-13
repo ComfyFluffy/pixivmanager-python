@@ -173,7 +173,11 @@ class PixivDownloader:
 
                 ugoira_json = papi.raw_ugoira_metadata(wj['id']).json() \
                     if wj['type'] == 'ugoira' else None
-                works = Works.from_json(session, wj, ugoira_json=ugoira_json)
+                works = Works.from_json(
+                    session,
+                    wj,
+                    language=papi.language,
+                    ugoira_json=ugoira_json)
                 if wj['type'] == 'ugoira' and ugoira_json:
                     ugoira_info = {
                         'works_id':
@@ -189,8 +193,8 @@ class PixivDownloader:
                     ugoira_info = None
                 works_tags = {t['name'] for t in wj['tags']}
                 if works_type and works.works_type != works_type \
-                or tags_include and not tags_include.issubset(works_tags) \
-                or tags_exclude and tags_exclude.issubset(works_tags):
+                or tags_include and not tags_include <= works_tags \
+                or tags_exclude and tags_exclude <= works_tags:
                     continue
                 works_ids.append(works.works_id)
                 self.single_works(works, ugoira_info=ugoira_info)

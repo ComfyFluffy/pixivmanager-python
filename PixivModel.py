@@ -106,7 +106,8 @@ class Works(Base):
             self.works_id, self.author_id, self.title)
 
     @classmethod
-    def from_json(cls, session: Session, json_info, ugoira_json=None):
+    def from_json(cls, session: Session, json_info, language,
+                  ugoira_json=None):
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
@@ -116,8 +117,7 @@ class Works(Base):
         if j.get('total_bookmarks') and j.get('total_view'):
             _bookmark_rate = round(j['total_bookmarks'] / j['total_view'], 5)
         if j.get('tags'):
-            _tags = Tag.from_tags_text_list(session,
-                                            [t['name'] for t in j['tags']])
+            _tags = Tag.from_tags_json(session, j['tags'], language)
         if j.get('create_date'):
             _create_date = iso_to_datetime(j.get('create_date'))
         _image_urls = WorksImageURLs.from_works_json(session, j)
@@ -416,29 +416,37 @@ class Tag(Base):
         nullable=False,
         unique=True)
 
-    translation = relationship('TagTranslation')
+    translation = relationship('TagTranslation', lazy='dynamic')
 
-    def __str__(self):
-        return str(self.tag_text)
+    # def __str__(self):
+    #     return str(self.tag_text)
 
     def __repr__(self):
         return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
 
-    @classmethod
-    def from_tags_text_list(cls, session: Session, tags: list):
-        l = []
-        _tags = list(dict.fromkeys(tags))
-        for ts in _tags:
-            t = session.query(cls).filter(cls.tag_text == ts).one_or_none()
-            if not t:
-                t = cls(tag_text=ts)
-                # if save_to_session:
-                session.add(t)
-            l.append(t)
-        return l
+    def get_translate(self, language):
+        return self.translation.filter(TagTranslation.language == language)
 
-    # def get_translation(self, lang: str):
-    #     pass
+    @classmethod
+    def from_tags_json(cls, session: Session, tags: list, language: str):
+        r = []
+        _tags = set()
+        for _t in tags:
+            t_name = _t['name']
+            t_translate = _t.get('translated_name')
+            if t_name in _tags:
+                continue
+            _tags.add(t_name)
+
+            t = session.query(cls).filter(cls.tag_text == t_name).one_or_none()
+            if not t:
+                t = cls(tag_text=t_name)
+                session.add(t)
+                session.flush()
+            if t_translate:
+                TagTranslation.save(session, t.tag_id, language, t_translate)
+            r.append(t)
+        return r
 
 
 class TagTranslation(Base):
@@ -446,12 +454,26 @@ class TagTranslation(Base):
 
     tag_id = Column(
         Integer, ForeignKey('tags.tag_id'), primary_key=True, index=True)
-    lang = Column(String(16), primary_key=True)
+    language = Column(String(16), primary_key=True, index=True)
     translation_text = Column(String(256), nullable=False)
 
     def __repr__(self):
         return 'TagTranslation(tag_id=%s, lang=%r, translation_text=%r)' % (
-            self.tag_id, self.lang, self.translation_text)
+            self.tag_id, self.language, self.translation_text)
+
+    @classmethod
+    def save(cls, session: Session, tag_id, language, translation_text):
+        tt = session.query(cls).filter(cls.tag_id == tag_id,
+                                       cls.language == language).one_or_none()
+        if not tt:
+            tt = cls(
+                tag_id=tag_id,
+                language=language,
+                translation_text=translation_text)
+            session.add(tt)
+        else:
+            tt.translation_text = translation_text
+        return tt
 
 
 class CustomTag(Base):

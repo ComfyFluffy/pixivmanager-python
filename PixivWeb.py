@@ -17,7 +17,7 @@ api = Api(app)
 
 pcfg = PixivConfig(CONFIG_FILE)
 pdb = PM.PixivDB(pcfg.database_uri, echo=True)
-papi = PixivAPI(pcfg.get_logger('PixivAPI'))
+papi = PixivAPI(logger=pcfg.get_logger('PixivAPI'))
 
 
 @app.route('/local/avatar/<path:path>')
