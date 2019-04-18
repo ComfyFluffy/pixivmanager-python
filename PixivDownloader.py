@@ -6,7 +6,6 @@ import threading
 import zipfile
 from logging import Logger
 from pathlib import Path
-import time
 
 import imageio
 import requests
@@ -19,6 +18,15 @@ from PixivModel import Ugoira, User, Works, WorksLocal
 
 
 class PixivDownloader:
+    '''
+    Multi-thread downloader for Pixiv works. Database is required.
+    Also corvent ugoira to GIF.
+    root_download_dir structure:
+        image file: (works_id)_p(page).(png, jpg, gif)
+        Single page: (author_id)/(image file)
+        Multiple pages: (author_id)/(works_id)/(image file)
+        Ugoira: (author_id)/(works_id)/(works_id)_ugoira0.gif & zip
+    '''
     logger = PixivConfig.init_logger('_PixivDownloader_')
 
     def __init__(self,
@@ -41,7 +49,7 @@ class PixivDownloader:
             t.start()
 
     @property
-    def finished(self):
+    def unfinished_tasks(self):
         return self.dq.unfinished_tasks
 
     def _save_file(self, parent_dir: Path, filename: str, content_stream,
@@ -54,9 +62,11 @@ class PixivDownloader:
             shutil.copyfileobj(content_stream, f)
         flength = os.stat(part_image_path).st_size
         if slength and slength != flength:
+            # Check downloaded file length. Will retry if not match.
             raise PixivException.DownloadException(
                 'Downloaded file length not match!')
-        part_image_path.replace(image_path)
+        part_image_path.replace(
+            image_path)  # Replace .part file with origin filename.
 
         if ugoira_info:
             with zipfile.ZipFile(image_path) as ugoira_zip:
@@ -64,6 +74,7 @@ class PixivDownloader:
         self.logger.info('Downloaded: %s' % filename)
 
     def save_ugoira_gif(self, ugoira_info, ugoira_zip, parent_dir: Path):
+        'Use ImageIO to corvent Ugoira ZIP to GIF.'
         wid = ugoira_info['works_id']
         self.logger.info('Making GIF for ugoira %s' % wid)
         tgif: Path = parent_dir / ('%s_ugoira_tmp.gif' % wid)
@@ -120,6 +131,7 @@ class PixivDownloader:
             img_parent_dir: Path = Path(str(works.author_id)) / str(
                 works.works_id)
             zip_url = ugoira_info['zip_url'].replace('600x600', '1920x1080')
+            #Replace size for higher resolution
             self._add(zip_url, img_parent_dir, ugoira_info)
             self._add(getattr(works.image_urls[0], image_size), img_parent_dir)
             return 2
@@ -234,6 +246,7 @@ class PixivDownloader:
                   works_type: str,
                   tags_include=None,
                   tags_exclude=None):
+        '''Download user's works or bookmarks.'''
         assert download_type in ('works', 'bookmark')
         if download_type == 'works':
             self.logger.info('Download user\'s works: %s' % user_id)

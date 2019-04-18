@@ -23,11 +23,16 @@ def dict_setattr(obj, d: dict):
 
 @compiles(String, 'sqlite')
 def skip_sqlite_collation(element, compiler, **kwargs):
+    '''
+    Sqlite doesn't support MYSql collation.
+    This will clear the collation if the database's type is sqlite.
+    '''
     element.collation = None
     return compiler.visit_VARCHAR(element, **kwargs)
 
 
 class IntegerTimestamp(TypeDecorator):
+    'Save Python datetime into database as int timestamp.'
     impl = BigInteger
 
     def __init__(self):
@@ -40,9 +45,9 @@ class IntegerTimestamp(TypeDecorator):
 
     def process_result_value(self, value, dialect):
         return value
-        # return datetime.fromtimestamp(value) if value else None
 
 
+# Many-to-many relationship mapping table.
 works_tags_table = Table(
     'works_tags', Base.metadata,\
     Column('row_id', Integer, primary_key=True),
@@ -112,6 +117,10 @@ class Works(Base):
                   language,
                   ugoira_json=None,
                   tags_cache={}):
+        '''
+        Cotvent Works JSON from Pixiv into local database model.
+        Use tags_cache in tags mapping for optimization.
+        '''
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
@@ -151,7 +160,6 @@ class Works(Base):
             cls.works_id == kv['works_id']).one_or_none()
         if not w:
             w = cls(**kv)
-            # if save_to_session:
             session.add(w)
         else:
             dict_setattr(w, kv)
@@ -159,6 +167,14 @@ class Works(Base):
 
 
 class WorksLocal(Base):
+    '''
+    I splited local_id into another table for auto increment primary key.
+    Only for saving insert order.
+    Works ording desc by time in JSON from Pixiv.
+    So during a bookmark info getting,
+    you have to commit after getting all pages with a reversed works list.
+    And I want to commit per 30 works got.
+    '''
     __tablename__ = 'works_local'
 
     local_id = Column(Integer, primary_key=True, index=True)
@@ -175,6 +191,9 @@ class WorksLocal(Base):
 
     @classmethod
     def create_if_not_exist(cls, session: Session, works_id):
+        # I want a better way like
+        #   try: INSERT except: pass
+        # But SQLAlchemy seems not support that.
         w = session.query(WorksLocal).filter(
             WorksLocal.works_id == works_id).one_or_none()
         if not w:
@@ -322,6 +341,7 @@ class Ugoira(Base):
 
 
 class WorksImageURLs(Base):
+    # TODO INSERT optimization required.
     __tablename__ = 'works_image_urls'
 
     def __repr__(self):
@@ -453,6 +473,8 @@ class Tag(Base):
                 continue
             _tags.add(t_name)
 
+            # Get Tag from cache at first.
+            # cache: {tag_text: Tag()}
             t = cache.get(t_name) \
                 or session.query(cls).filter(cls.tag_text == t_name).one_or_none()
             if not t:
@@ -516,6 +538,7 @@ class PixivDB:
 
     @contextmanager
     def get_session(self, readonly=True) -> Session:
+        'So I can use with: ...'
         def no_write(*args, **kwargs):
             pass
 

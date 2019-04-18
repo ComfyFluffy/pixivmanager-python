@@ -101,7 +101,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
                   works_type, tags_include, tags_exclude)
 
-    while pdl.dq.unfinished_tasks:
+    while pdl.unfinished_tasks:  # Wait until all tasks done.
         time.sleep(0.1)
 
     pdl.dq.join()

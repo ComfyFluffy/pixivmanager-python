@@ -10,8 +10,9 @@ from PixivConfig import HTTP_HEADERS, _retry, init_logger
 
 CLIENT_ID = 'MOBrBDS8blbauoSck0ZfDbtuzpyT'
 CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
+# Copied from https://github.com/Mapaler/PixivUserBatchDownload
 
-TIMEOUT = 20
+TIMEOUT = 20  # HTTP GET request timeout
 
 proxy = {
     'http': 'http://127.0.0.1:8888',
@@ -20,9 +21,12 @@ proxy = {
 
 
 class PixivAPI:
+    '''
+    A Pixiv base API.
+    raw_ returns requests Response.'''
     logger = init_logger('_PixivAPI_')
     language = 'en'
-    pixiv_user_id = -1
+    pixiv_user_id = -1  # Login user's Pixiv ID
     refresh_token = None
 
     def __init__(self,
@@ -90,19 +94,15 @@ class PixivAPI:
                 self.logger.warning('Can not login with token!')
                 raise PixivException.LoginTokenError
 
-        try:
-            if username and password:
-                return login_password(username, password)
-            elif refresh_token:
-                return login_token(refresh_token)
-            elif not self.refresh_token:
-                raise ValueError(
-                    'Neither username & password or refresh token found!')
-            else:
-                return login_token(self.refresh_token)
-        except requests.RequestException:
-            self.logger.exception('Network exception occured!')
-            raise
+        if username and password:
+            return login_password(username, password)
+        elif refresh_token:
+            return login_token(refresh_token)
+        elif not self.refresh_token:
+            raise ValueError(
+                'Neither username & password or refresh token found!')
+        else:
+            return login_token(self.refresh_token)
 
     @_retry(
         requests.RequestException,

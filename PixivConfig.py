@@ -79,12 +79,13 @@ def cd_script_dir():
 
 
 def iso_to_datetime(date_str: str):
-    if VERSION_UNDER_3_7:
+    if VERSION_UNDER_3_7:  # Replace timezone info for python under version 3.7
         date_str = date_str.replace('+09:00', '+0900')
     return datetime.strptime(date_str, ISO_TIME_FORMAT)
 
 
 def init_colorama():
+    'Init colorama on windows for colored output.'
     global colorama_loaded
     if colorama_loaded:
         return
@@ -94,6 +95,7 @@ def init_colorama():
 
 
 def init_logger(logger_name, log_file=None) -> logging.Logger:
+    'Init colored logger.'
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
@@ -120,6 +122,8 @@ def _retry(exception,
            error_msg=None,
            logger=None,
            print_traceback=True):
+    'An retrying decorator.'
+
     def deco_retry(f):
         _logger = logger
 
@@ -158,6 +162,8 @@ def _retry(exception,
 
 
 def time_checker(f):
+    'A decorator that checks the time spent by the function.'
+
     @wraps(f)
     def f_do(*args, **kwargs):
         try:
@@ -170,6 +176,8 @@ def time_checker(f):
 
 
 class PixivConfig:
+    'JSON config loding and saving.'
+
     def __init__(self, cfg_json_file):
         self.cfg_json_file = Path(cfg_json_file)
 
@@ -223,8 +231,10 @@ class PixivConfig:
             d_mysql = self.cfg['database']['mysql']
             return 'mysql://%s:%s@%s/%s?charset=utf8mb4' % (
                 d_mysql['username'],
-                urllib.parse.quote_plus(
-                    d_mysql['password']), d_mysql['host'], d_mysql['database'])
+                urllib.parse.quote_plus(  #Only password is encoded
+                    d_mysql['password']),
+                d_mysql['host'],
+                d_mysql['database'])
 
 
 if __name__ == "__main__":
