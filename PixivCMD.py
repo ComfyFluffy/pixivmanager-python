@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import time
+import os
 
 import click
 
@@ -40,8 +41,9 @@ PixivConfig.cd_script_dir()
     default=None,
     type=click.STRING,
     help='Exclude works by tags. Split by ;')
+@click.option('--echo', is_flag=True, help='Echo database script')
 def main(user, max_times, private, download_type, works_type, tags_include,
-         tags_exclude):
+         tags_exclude, echo):
     '''
     A simple CMD tool for bookmarks download and user's works download.
     Supports database updating.
@@ -87,7 +89,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     pcfg.cfg['pixiv']['refresh_token'] = papi.refresh_token
     pcfg.save_cfg()
     logger = pcfg.get_logger('PixivCMD')
-    pdb = PixivModel.PixivDB(pcfg.database_uri)
+    pdb = PixivModel.PixivDB(pcfg.database_uri, echo=echo)
     pdl = PixivDownloader.PixivDownloader(
         pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
@@ -103,7 +105,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         time.sleep(0.1)
 
     pdl.dq.join()
-    logger.info('Works download task for user %s done!' % papi.pixiv_user_id)
+    logger.info('Works download task done! User ID: %s' % papi.pixiv_user_id)
 
 
 if __name__ == '__main__':

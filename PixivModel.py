@@ -106,8 +106,12 @@ class Works(Base):
             self.works_id, self.author_id, self.title)
 
     @classmethod
-    def from_json(cls, session: Session, json_info, language,
-                  ugoira_json=None):
+    def from_json(cls,
+                  session: Session,
+                  json_info,
+                  language,
+                  ugoira_json=None,
+                  tags_cache={}):
         j: dict = json_info
         _caption = _bookmark_rate = _create_date = None
         _tags = []
@@ -117,7 +121,8 @@ class Works(Base):
         if j.get('total_bookmarks') and j.get('total_view'):
             _bookmark_rate = round(j['total_bookmarks'] / j['total_view'], 5)
         if j.get('tags'):
-            _tags = Tag.from_tags_json(session, j['tags'], language)
+            _tags = Tag.from_tags_json(session, j['tags'], language,
+                                       tags_cache)
         if j.get('create_date'):
             _create_date = iso_to_datetime(j.get('create_date'))
         _image_urls = WorksImageURLs.from_works_json(session, j)
@@ -174,7 +179,6 @@ class WorksLocal(Base):
             WorksLocal.works_id == works_id).one_or_none()
         if not w:
             w = cls(works_id=works_id)
-            # if save_to_session:
             session.add(w)
         return w
 
@@ -231,6 +235,8 @@ class UserDetail(Base):
     total_illusts = Column(Integer)
     total_manga = Column(Integer)
     total_novels = Column(Integer)
+    total_illust_bookmarks_public = Column(Integer)
+    total_follow_users = Column(Integer)
     avatar_url = Column(String(256))
     background_url = Column(String(256))
     comment = Column(Text)
@@ -239,13 +245,24 @@ class UserDetail(Base):
     def from_user_json(cls, session: Session, json_info,
                        save_to_session=False):
         kv = {
-            'user_id': json_info['user']['id'],
-            'total_illusts': json_info['profile']['total_illusts'],
-            'total_manga': json_info['profile']['total_manga'],
-            'total_novels': json_info['profile']['total_novels'],
-            'avatar_url': json_info['user']['profile_image_urls']['medium'],
-            'background_url': json_info['profile']['background_image_url'],
-            'comment': json_info['user']['comment']
+            'user_id':
+            json_info['user']['id'],
+            'total_illusts':
+            json_info['profile']['total_illusts'],
+            'total_manga':
+            json_info['profile']['total_manga'],
+            'total_novels':
+            json_info['profile']['total_novels'],
+            'total_illust_bookmarks_public':
+            json_info['profile']['total_illust_bookmarks_public'],
+            'total_follow_users':
+            json_info['profile']['total_follow_users'],
+            'avatar_url':
+            json_info['user']['profile_image_urls']['medium'],
+            'background_url':
+            json_info['profile']['background_image_url'],
+            'comment':
+            json_info['user']['comment']
         }
         u = session.query(cls).filter(
             cls.user_id == kv['user_id']).one_or_none()
@@ -416,10 +433,7 @@ class Tag(Base):
         nullable=False,
         unique=True)
 
-    translation = relationship('TagTranslation', lazy='dynamic')
-
-    # def __str__(self):
-    #     return str(self.tag_text)
+    translation = relationship('TagTranslation', lazy='joined')
 
     def __repr__(self):
         return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
@@ -428,7 +442,8 @@ class Tag(Base):
         return self.translation.filter(TagTranslation.language == language)
 
     @classmethod
-    def from_tags_json(cls, session: Session, tags: list, language: str):
+    def from_tags_json(cls, session: Session, tags: list, language: str,
+                       cache: dict):
         r = []
         _tags = set()
         for _t in tags:
@@ -438,13 +453,25 @@ class Tag(Base):
                 continue
             _tags.add(t_name)
 
-            t = session.query(cls).filter(cls.tag_text == t_name).one_or_none()
+            t = cache.get(t_name) \
+                or session.query(cls).filter(cls.tag_text == t_name).one_or_none()
             if not t:
                 t = cls(tag_text=t_name)
                 session.add(t)
                 session.flush()
             if t_translate:
-                TagTranslation.save(session, t.tag_id, language, t_translate)
+                _translate_set = False
+                for tt in t.translation:
+                    if tt.language == language:
+                        tt.translation_text = t_translate
+                        _translate_set = True
+                if not _translate_set:
+                    tt = TagTranslation(
+                        tag_id=t.tag_id,
+                        language=language,
+                        translation_text=t_translate)
+                    t.translation.append(tt)
+            cache[t_name] = t
             r.append(t)
         return r
 
@@ -460,20 +487,6 @@ class TagTranslation(Base):
     def __repr__(self):
         return 'TagTranslation(tag_id=%s, lang=%r, translation_text=%r)' % (
             self.tag_id, self.language, self.translation_text)
-
-    @classmethod
-    def save(cls, session: Session, tag_id, language, translation_text):
-        tt = session.query(cls).filter(cls.tag_id == tag_id,
-                                       cls.language == language).one_or_none()
-        if not tt:
-            tt = cls(
-                tag_id=tag_id,
-                language=language,
-                translation_text=translation_text)
-            session.add(tt)
-        else:
-            tt.translation_text = translation_text
-        return tt
 
 
 class CustomTag(Base):

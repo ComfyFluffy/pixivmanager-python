@@ -22,7 +22,7 @@ HTTP_HEADERS = {
     'Referer': 'https://app-api.pixiv.net/'
 }
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
-VERSION_UNDER_3_7 = sys.version < '3.7'
+VERSION_UNDER_3_7 = sys.version_info < (3, 7)
 IMAGE_TYPES = ('jpg', 'png', 'gif')
 
 DEFAULT_CFG = {

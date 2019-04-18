@@ -6,6 +6,7 @@ import threading
 import zipfile
 from logging import Logger
 from pathlib import Path
+import time
 
 import imageio
 import requests
@@ -147,6 +148,7 @@ class PixivDownloader:
         next_url = True
         works_ids = []
         users_new = []
+        tags_cache = {}
 
         while next_url:
             n += len(r['illusts'])
@@ -177,7 +179,8 @@ class PixivDownloader:
                     session,
                     wj,
                     language=papi.language,
-                    ugoira_json=ugoira_json)
+                    ugoira_json=ugoira_json,
+                    tags_cache=tags_cache)
                 if wj['type'] == 'ugoira' and ugoira_json:
                     ugoira_info = {
                         'works_id':
