@@ -6,8 +6,11 @@ TIMEOUT = 20  # HTTP GET request timeout
 
 CF_LOGGER_FORMAT = '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s'
 CH_LOGGER_FORMAT = '[%(asctime)s] %(name)s %(message)s'
+
 IMAGE_TYPES = ('jpg', 'png', 'gif')
+
 ISO_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
+
 HTTP_HEADERS = {
     'User-Agent':
     'PixivAndroidApp/5.0.132 (Android 8.1.0; Android SDK built for x86)',

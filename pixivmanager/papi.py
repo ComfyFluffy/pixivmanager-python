@@ -41,8 +41,7 @@ class PixivAPI:
         requests.RequestException,
         delay=2,
         tries=5,
-        error_msg='API network error! Retrying...',
-        print_traceback=False)
+        error_msg='Network exception occurred! Retrying...')
     def login(self, username='', password='', refresh_token=''):
         auth_url = 'https://oauth.secure.pixiv.net/auth/token'
         datas = {
@@ -96,12 +95,7 @@ class PixivAPI:
         else:
             return login_token(self.refresh_token)
 
-    @_retry(
-        requests.RequestException,
-        delay=2,
-        tries=5,
-        error_msg='API network error! Retrying...',
-        print_traceback=False)
+    @_retry(requests.RequestException, delay=2, tries=5)
     def _get(self, url):
         self.logger.debug('Accessed url: %s' % url)
         if not self.s.headers.get('Authorization'):
@@ -159,13 +153,3 @@ class PixivAPI:
         return self.get(
             'https://app-api.pixiv.net/v1/user/illusts?user_id=%d' %
             int(user_id), 'raw_user_works')
-
-
-if __name__ == "__main__":
-    from .config import Config
-
-    pcfg = Config('../config.json')
-    papi = PixivAPI(logger=pcfg.get_logger('PixivAPI'))
-
-    if pcfg.cfg['pixiv']['refresh_token']:
-        papi.login(refresh_token=pcfg.cfg['pixiv']['refresh_token'])

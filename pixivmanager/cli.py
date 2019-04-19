@@ -1,17 +1,14 @@
-#!/usr/bin/python3
-
-import time
 import os
+import time
+import sys
 
 import click
 
-import PixivAPI
-import PixivConfig
-import PixivDownloader
-import PixivException
-import PixivModel
-
-PixivConfig.cd_script_dir()
+from . import exceptions
+from .config import Config
+from .downloader import PixivDownloader
+from .models import DatabaseHelper
+from .papi import PixivAPI
 
 
 @click.command()
@@ -59,8 +56,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         print('Value USER | MAX | DOWNLOAD_TYPE must be INT.')
         exit(-1)
 
-    pcfg = PixivConfig.PixivConfig('config.json')
-    papi = PixivAPI.PixivAPI(
+    pcfg = Config('config.json')
+    papi = PixivAPI(
         language=pcfg.cfg['pixiv']['language'],
         logger=pcfg.get_logger('PixivAPI'))
 
@@ -78,9 +75,9 @@ def main(user, max_times, private, download_type, works_type, tags_include,
             login_result = papi.login(refresh_token=refresh_token)
         else:
             login_result = login_with_pw()
-    except PixivException.LoginTokenError:
+    except exceptions.LoginTokenError:
         login_result = login_with_pw()
-    except PixivException.LoginPasswordError:
+    except exceptions.LoginPasswordError:
         click.echo('Username / password error!')
 
     if not login_result:
@@ -89,8 +86,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     pcfg.cfg['pixiv']['refresh_token'] = papi.refresh_token
     pcfg.save_cfg()
     logger = pcfg.get_logger('PixivCMD')
-    pdb = PixivModel.PixivDB(pcfg.database_uri, echo=echo)
-    pdl = PixivDownloader.PixivDownloader(
+    pdb = DatabaseHelper(pcfg.database_uri, echo=echo)
+    pdl = PixivDownloader(
         pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
         logger.info('Downloading all bookmarks...')
@@ -101,7 +98,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
                   works_type, tags_include, tags_exclude)
 
-    while pdl.unfinished_tasks:  # Wait until all tasks done.
+    while pdl.unfinished_tasks:
+        # Wait until all tasks done.
         time.sleep(0.1)
 
     pdl.dq.join()

@@ -79,7 +79,8 @@ works_custom_tags_table = Table(
         index=True,
         nullable=False))
 pixivmanager_version_table = Table(
-    'pixivmanager_version', Column('version', String(16), primary_key=True))
+    'pixivmanager_version', Base.metadata,
+    Column('version', String(16), primary_key=True))
 
 
 class Works(Base):
@@ -559,6 +560,6 @@ class DatabaseHelper:
 if __name__ == "__main__":
     from .config import Config
 
-    pcfg = Config('../config.json')
+    pcfg = Config('config.json')
     pdb = DatabaseHelper(pcfg.database_uri, echo=True)
     s = pdb.sessionmaker()

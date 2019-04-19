@@ -2,6 +2,10 @@
 
 A toolset for [Pixiv](https://www.pixiv.net/)
 
+```bash
+python -m pixivmanager
+```
+
 ## Features
 
 - Pixiv works downloader

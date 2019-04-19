@@ -12,7 +12,7 @@ import requests
 from sqlalchemy.orm.session import Session
 
 from . import exceptions
-from .api import PixivAPI
+from .papi import PixivAPI
 from .constant import HTTP_HEADERS
 from .helpers import _retry, init_logger
 from .models import User, Works, WorksLocal
@@ -86,8 +86,7 @@ class PixivDownloader:
         tgif.replace(gif)
 
     @_retry((requests.RequestException, exceptions.DownloadException,
-             zipfile.BadZipFile),
-            error_msg='Unable to download file. Retrying...')
+             zipfile.BadZipFile))
     def _download(self, url: str, download_dir: Path, ugoira_info):
         filename: str = url.split('/')[-1].split('?')[0]
         parent_dir: Path = self.root_download_dir / download_dir

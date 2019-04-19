@@ -32,7 +32,7 @@ def _retry(exception,
            backoff=1,
            error_msg=None,
            logger=None,
-           print_traceback=True):
+           print_traceback=False):
     'An retrying decorator.'
 
     def deco_retry(f):
