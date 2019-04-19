@@ -1,6 +1,7 @@
 import os
 import time
 import sys
+from pathlib import Path
 
 import click
 
@@ -12,7 +13,8 @@ from .papi import PixivAPI
 
 
 @click.command()
-@click.argument('download_type', type=click.Choice(('bookmark', 'works')))
+@click.argument(
+    'download_type', type=click.Choice(('bookmark', 'works', 'daemon')))
 @click.option(
     '--user',
     default=0,
@@ -39,14 +41,32 @@ from .papi import PixivAPI
     type=click.STRING,
     help='Exclude works by tags. Split by ;')
 @click.option('--echo', is_flag=True, help='Echo database script')
+@click.option(
+    '--config',
+    default=None,
+    type=click.STRING,
+    help='Config JSON file, default: ~/.pixivmanager/config.json')
 def main(user, max_times, private, download_type, works_type, tags_include,
-         tags_exclude, echo):
+         tags_exclude, echo, config):
     '''
     A simple CMD tool for bookmarks download and user's works download.
     Supports database updating.
 
     Download type: 0: Bookmarks | 1: User's works
     '''
+    root_path: Path = Path.home() / '.pixivmanager'
+    if not config:
+        os.makedirs(root_path, exist_ok=True)
+
+    config_path = config or root_path / 'config.json'
+    pcfg = Config(config_path)
+    logger = pcfg.get_logger('PixivCMD')
+    logger.info('Config file: %s' % config_path)
+
+    if works_type == 'daemon':
+        from .daemon import main as daemon_main
+        daemon_main()
+
     try:
         tags_include = None if not tags_include else set(
             tags_include.split(';'))
@@ -56,7 +76,6 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         print('Value USER | MAX | DOWNLOAD_TYPE must be INT.')
         exit(-1)
 
-    pcfg = Config('config.json')
     papi = PixivAPI(
         language=pcfg.cfg['pixiv']['language'],
         logger=pcfg.get_logger('PixivAPI'))
@@ -85,7 +104,6 @@ def main(user, max_times, private, download_type, works_type, tags_include,
 
     pcfg.cfg['pixiv']['refresh_token'] = papi.refresh_token
     pcfg.save_cfg()
-    logger = pcfg.get_logger('PixivCMD')
     pdb = DatabaseHelper(pcfg.database_uri, echo=echo)
     pdl = PixivDownloader(
         pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))

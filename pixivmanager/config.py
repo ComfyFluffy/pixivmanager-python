@@ -6,8 +6,9 @@ from pathlib import Path
 from .helpers import init_logger
 
 DEFAULT_CFG = {
-    'storage_dir': 'storage',
+    'storage_dir': '',
     # Directory to save downloaded works amd database files
+    # Default: ~/.pixivmanager
     'pixiv_works_dir': '',
     # Saved Pixiv works
     # Defult: (storage_dir)/illusts
@@ -50,6 +51,7 @@ DEFAULT_CFG = {
 
 class Config:
     'JSON config loding and saving.'
+    home_root_path = Path.home() / '.pixivmanager'
 
     def __init__(self, cfg_json_file):
         self.cfg_json_file = Path(cfg_json_file)
@@ -62,11 +64,13 @@ class Config:
 
         self.cfg = {**DEFAULT_CFG, **loaded_cfg}
         self.validate_cfg()
-        self.storage_dir = Path(self.cfg['storage_dir'])
-        self.pixiv_works_dir = Path(
+        self.storage_dir = self.get_path(
+            self.cfg['storage_dir']
+        ) if self.cfg['storage_dir'] else self.home_root_path
+        self.pixiv_works_dir = self.get_path(
             self.cfg['pixiv_works_dir']
         ) if self.cfg['pixiv_works_dir'] else self.storage_dir / 'works'
-        self.avatars_dir = Path(
+        self.avatars_dir = self.get_path(
             self.cfg['avatars_dir']
         ) if self.cfg['avatars_dir'] else self.storage_dir / 'avatars'
 
@@ -108,6 +112,13 @@ class Config:
                     d_mysql['password']),
                 d_mysql['host'],
                 d_mysql['database'])
+
+    def get_path(self, path) -> Path:
+        path = Path(path)
+        if not path.is_absolute():
+            raise ValueError('Absolute path required!')
+        else:
+            return path
 
 
 if __name__ == "__main__":

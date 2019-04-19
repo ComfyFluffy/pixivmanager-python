@@ -1,4 +1,4 @@
 if __name__ == "__main__":
-    from .cli import main
+    from .cli import main as cli_main
 
-    main()  # pylint: disable=no-value-for-parameter
+    cli_main()  # pylint: disable=no-value-for-parameter
