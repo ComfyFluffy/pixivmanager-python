@@ -11,10 +11,11 @@ import imageio
 import requests
 from sqlalchemy.orm.session import Session
 
-import PixivConfig
-import PixivException
-from PixivAPI import PixivAPI
-from PixivModel import Ugoira, User, Works, WorksLocal
+from . import exceptions
+from .api import PixivAPI
+from .constant import HTTP_HEADERS
+from .helpers import _retry, init_logger
+from .models import User, Works, WorksLocal
 
 
 class PixivDownloader:
@@ -27,7 +28,7 @@ class PixivDownloader:
         Multiple pages: (author_id)/(works_id)/(image file)
         Ugoira: (author_id)/(works_id)/(works_id)_ugoira0.gif & zip
     '''
-    logger = PixivConfig.init_logger('_PixivDownloader_')
+    logger = init_logger('_PixivDownloader_')
 
     def __init__(self,
                  root_download_dir: Path,
@@ -37,7 +38,7 @@ class PixivDownloader:
         self.root_download_dir = Path(root_download_dir)
         self.dq = queue.Queue()
         self.s = requests.Session()
-        self.s.headers = dict(PixivConfig.HTTP_HEADERS)
+        self.s.headers = dict(HTTP_HEADERS)
         self.download_threads_list = []
         if logger:
             self.logger = logger
@@ -63,7 +64,7 @@ class PixivDownloader:
         flength = os.stat(part_image_path).st_size
         if slength and slength != flength:
             # Check downloaded file length. Will retry if not match.
-            raise PixivException.DownloadException(
+            raise exceptions.DownloadException(
                 'Downloaded file length not match!')
         part_image_path.replace(
             image_path)  # Replace .part file with origin filename.
@@ -84,9 +85,9 @@ class PixivDownloader:
         imageio.mimsave(tgif, images, duration=ugoira_info['delay'])
         tgif.replace(gif)
 
-    @PixivConfig._retry((requests.RequestException,
-                         PixivException.DownloadException, zipfile.BadZipFile),
-                        error_msg='Unable to download file. Retrying...')
+    @_retry((requests.RequestException, exceptions.DownloadException,
+             zipfile.BadZipFile),
+            error_msg='Unable to download file. Retrying...')
     def _download(self, url: str, download_dir: Path, ugoira_info):
         filename: str = url.split('/')[-1].split('?')[0]
         parent_dir: Path = self.root_download_dir / download_dir

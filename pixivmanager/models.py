@@ -11,7 +11,7 @@ from sqlalchemy.schema import CreateColumn
 from sqlalchemy.sql import exists
 from sqlalchemy.types import TypeDecorator
 
-from PixivConfig import iso_to_datetime
+from .helpers import iso_to_datetime
 
 Base = declarative_base()
 
@@ -528,7 +528,7 @@ class CustomTag(Base):
                                                       self.tag_text)
 
 
-class PixivDB:
+class DatabaseHelper:
     def __init__(self, database_uri: str, create_tables=True, **kwargs):
         self.engine = create_engine(database_uri, pool_pre_ping=True, **kwargs)
         if create_tables:
@@ -557,8 +557,8 @@ class PixivDB:
 
 
 if __name__ == "__main__":
-    import PixivConfig
+    from .config import Config
 
-    pcfg = PixivConfig.PixivConfig('config.json')
-    pdb = PixivDB(pcfg.database_uri, echo=True)
+    pcfg = Config('../config.json')
+    pdb = DatabaseHelper(pcfg.database_uri, echo=True)
     s = pdb.sessionmaker()
