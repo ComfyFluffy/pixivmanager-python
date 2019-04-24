@@ -90,7 +90,7 @@ class Works(Base):
     author_id = Column(
         Integer, ForeignKey('users.user_id'), index=True, nullable=False)
     works_type = Column(String(15))
-    title = Column(String(256))
+    title = Column(String(255))
     page_count = Column(Integer)
     total_views = Column(Integer)
     total_bookmarks = Column(Integer)
@@ -210,8 +210,8 @@ class User(Base):
 
     local_id = Column(Integer, primary_key=True)
     user_id = Column(Integer, index=True, nullable=False, unique=True)
-    name = Column(String(256))
-    account = Column(String(256))
+    name = Column(String(255))
+    account = Column(String(255))
     is_followed = Column(Boolean)
     insert_date = Column(IntegerTimestamp, default=datetime.now)
 
@@ -259,8 +259,8 @@ class UserDetail(Base):
     total_novels = Column(Integer)
     total_illust_bookmarks_public = Column(Integer)
     total_follow_users = Column(Integer)
-    avatar_url = Column(String(256))
-    background_url = Column(String(256))
+    avatar_url = Column(String(255))
+    background_url = Column(String(255))
     comment = Column(Text)
 
     @classmethod
@@ -303,7 +303,7 @@ class Ugoira(Base):
     works_id = Column(
         Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
     delay_text = Column(Text)
-    zip_url = Column(String(256))
+    zip_url = Column(String(255))
 
     _delay = []
 
@@ -354,10 +354,10 @@ class WorksImageURLs(Base):
     works_id = Column(
         Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
     page = Column(Integer, primary_key=True)
-    square_medium = Column(String(256))
-    medium = Column(String(256))
-    large = Column(String(256))
-    original = Column(String(256))
+    square_medium = Column(String(255))
+    medium = Column(String(255))
+    large = Column(String(255))
+    original = Column(String(255))
 
     @classmethod
     def get_by_id(cls,
@@ -448,7 +448,7 @@ class Tag(Base):
 
     tag_id = Column(Integer, primary_key=True)
     tag_text = Column(
-        String(256, collation='utf8mb4_0900_as_cs'),
+        String(255, collation='utf8mb4_0900_as_cs'),
         index=True,
         nullable=False,
         unique=True)
@@ -504,7 +504,7 @@ class TagTranslation(Base):
     tag_id = Column(
         Integer, ForeignKey('tags.tag_id'), primary_key=True, index=True)
     language = Column(String(16), primary_key=True, index=True)
-    translation_text = Column(String(256), nullable=False)
+    translation_text = Column(String(255), nullable=False)
 
     def __repr__(self):
         return 'TagTranslation(tag_id=%s, lang=%r, translation_text=%r)' % (
@@ -516,7 +516,7 @@ class CustomTag(Base):
 
     tag_id = Column(Integer, primary_key=True)
     tag_text = Column(
-        String(256, collation='utf8mb4_0900_as_cs'),
+        String(255, collation='utf8mb4_0900_as_cs'),
         index=True,
         nullable=False,
         unique=True)
@@ -538,7 +538,7 @@ class DatabaseHelper:
 
     @contextmanager
     def get_session(self, readonly=True) -> Session:
-        'So I can use with: ...'
+        'with get_session() as session: ...'
 
         def no_write(*args, **kwargs):
             pass

@@ -3,6 +3,7 @@ CLIENT_SECRET = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj'
 # Copied from https://github.com/Mapaler/PixivUserBatchDownload
 
 TIMEOUT = 20  # HTTP GET request timeout
+DOWNLOADER_TIMEOUT = 150  # Image downloader timeout
 
 CF_LOGGER_FORMAT = '[%(asctime)s] [%(levelname)s] %(name)s : %(message)s'
 CH_LOGGER_FORMAT = '[%(asctime)s] %(name)s %(message)s'

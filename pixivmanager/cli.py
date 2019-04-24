@@ -49,10 +49,7 @@ from .papi import PixivAPI
 def main(user, max_times, private, download_type, works_type, tags_include,
          tags_exclude, echo, config):
     '''
-    A simple CMD tool for bookmarks download and user's works download.
-    Supports database updating.
-
-    Download type: 0: Bookmarks | 1: User's works
+    CLI for PixivManager.
     '''
     root_path: Path = Path.home() / '.pixivmanager'
     if not config:
@@ -63,9 +60,10 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     logger = pcfg.get_logger('PixivCMD')
     logger.info('Config file: %s' % config_path)
 
-    if works_type == 'daemon':
+    if download_type == 'daemon':
         from .daemon import main as daemon_main
-        daemon_main()
+        daemon_main(pcfg)
+        return
 
     try:
         tags_include = None if not tags_include else set(

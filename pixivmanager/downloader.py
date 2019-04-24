@@ -13,7 +13,7 @@ from sqlalchemy.orm.session import Session
 
 from . import exceptions
 from .papi import PixivAPI
-from .constant import HTTP_HEADERS
+from .constant import HTTP_HEADERS, DOWNLOADER_TIMEOUT
 from .helpers import _retry, init_logger
 from .models import User, Works, WorksLocal
 
@@ -98,7 +98,7 @@ class PixivDownloader:
                     self.save_ugoira_gif(ugoira_info, ugoira_zip, parent_dir)
             return
         parent_dir.mkdir(parents=True, exist_ok=True)
-        with self.s.get(url, stream=True) as res:
+        with self.s.get(url, stream=True, timeout=DOWNLOADER_TIMEOUT) as res:
             if res.status_code == 200:
                 total_size = int(res.headers['Content-Length'])
                 self._save_file(parent_dir, filename, res.raw, total_size,
@@ -164,7 +164,7 @@ class PixivDownloader:
 
         while next_url:
             n += len(r['illusts'])
-            self.logger.info('Got works: %s' % n)
+            self.logger.info('Processed works: %s' % n)
 
             users_dict = {
                 w['user']['id']: w['user']
