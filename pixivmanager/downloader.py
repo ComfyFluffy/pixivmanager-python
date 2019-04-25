@@ -12,7 +12,7 @@ import requests
 from sqlalchemy.orm.session import Session
 
 from . import exceptions
-from .papi import PixivAPI
+from .pixivapi import PixivAPI
 from .constant import HTTP_HEADERS, DOWNLOADER_TIMEOUT
 from .helpers import _retry, init_logger
 from .models import User, Works, WorksLocal
@@ -193,19 +193,18 @@ class PixivDownloader:
                     language=papi.language,
                     ugoira_json=ugoira_json,
                     tags_cache=tags_cache)
-                if wj['type'] == 'ugoira' and ugoira_json:
-                    ugoira_info = {
-                        'works_id':
-                        wj['id'],
-                        'zip_url':
-                        ugoira_json['ugoira_metadata']['zip_urls']['medium'],
-                        'delay': [
-                            f['delay'] // 10 / 100  #1/100s
-                            for f in ugoira_json['ugoira_metadata']['frames']
-                        ]
-                    }
-                else:
-                    ugoira_info = None
+
+                ugoira_info = {
+                    'works_id':
+                    wj['id'],
+                    'zip_url':
+                    ugoira_json['ugoira_metadata']['zip_urls']['medium'],
+                    'delay': [
+                        f['delay'] // 10 / 100  #1/100s
+                        for f in ugoira_json['ugoira_metadata']['frames']
+                    ]
+                } if wj['type'] == 'ugoira' and ugoira_json else None
+
                 works_tags = {t['name'] for t in wj['tags']}
                 if works_type and works.works_type != works_type \
                 or tags_include and not tags_include <= works_tags \

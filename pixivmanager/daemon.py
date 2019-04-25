@@ -2,11 +2,11 @@ from .config import Config
 
 
 class Daemon:
-    def __init__(self, pcfg: Config):
+    def __init__(self, config: Config):
         pass
 
 
-def main(pcfg: Config):
+def main(config: Config):
     from .webapi import run as webapi_run
-    daemon = Daemon(pcfg)
-    webapi_run(daemon)
+    daemon = Daemon(config)
+    webapi_run(daemon, config)

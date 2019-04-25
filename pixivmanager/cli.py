@@ -9,7 +9,7 @@ from . import exceptions
 from .config import Config
 from .downloader import PixivDownloader
 from .models import DatabaseHelper
-from .papi import PixivAPI
+from .pixivapi import PixivAPI
 
 
 @click.command()
@@ -56,13 +56,13 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         os.makedirs(root_path, exist_ok=True)
 
     config_path = config or root_path / 'config.json'
-    pcfg = Config(config_path)
-    logger = pcfg.get_logger('PixivCMD')
+    config = Config(config_path)
+    logger = config.get_logger('CLI')
     logger.info('Config file: %s' % config_path)
 
     if download_type == 'daemon':
         from .daemon import main as daemon_main
-        daemon_main(pcfg)
+        daemon_main(config)
         return
 
     try:
@@ -75,8 +75,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         exit(-1)
 
     papi = PixivAPI(
-        language=pcfg.cfg['pixiv']['language'],
-        logger=pcfg.get_logger('PixivAPI'))
+        language=config.cfg['pixiv']['language'],
+        logger=config.get_logger('PixivAPI'))
 
     login_result = None
 
@@ -87,7 +87,7 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         return papi.login(username, password)
 
     try:
-        refresh_token = pcfg.cfg['pixiv']['refresh_token']
+        refresh_token = config.cfg['pixiv']['refresh_token']
         if refresh_token:
             login_result = papi.login(refresh_token=refresh_token)
         else:
@@ -100,11 +100,11 @@ def main(user, max_times, private, download_type, works_type, tags_include,
     if not login_result:
         exit(-1)
 
-    pcfg.cfg['pixiv']['refresh_token'] = papi.refresh_token
-    pcfg.save_cfg()
-    pdb = DatabaseHelper(pcfg.database_uri, echo=echo)
+    config.cfg['pixiv']['refresh_token'] = papi.refresh_token
+    config.save_cfg()
+    pdb = DatabaseHelper(config.database_uri, echo=echo)
     pdl = PixivDownloader(
-        pcfg.pixiv_works_dir, logger=pcfg.get_logger('PixivDownloader'))
+        config.pixiv_works_dir, logger=config.get_logger('PixivDownloader'))
     if download_type == 'bookmarks':
         logger.info('Downloading all bookmarks...')
     elif download_type == 'works':

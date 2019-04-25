@@ -102,7 +102,7 @@ class Works(Base):
     author = relationship('User', back_populates='works')
     local = relationship('WorksLocal', uselist=False)
     ugoira = relationship('Ugoira', uselist=False)
-    caption = relationship('WorksCaption', uselist=False)
+    caption = relationship('WorksCaption', uselist=False, lazy='joined')
     image_urls = relationship('WorksImageURLs')
 
     tags = relationship('Tag', secondary=works_tags_table, backref='works')
@@ -560,6 +560,6 @@ class DatabaseHelper:
 if __name__ == "__main__":
     from .config import Config
 
-    pcfg = Config('config.json')
-    pdb = DatabaseHelper(pcfg.database_uri, echo=True)
+    config = Config('config.json')
+    pdb = DatabaseHelper(config.database_uri, echo=True)
     s = pdb.sessionmaker()
