@@ -10,6 +10,7 @@ from .config import Config
 from .downloader import PixivDownloader
 from .models import DatabaseHelper
 from .pixivapi import PixivAPI
+from .helpers import init_colorama
 
 
 @click.command()
@@ -57,6 +58,8 @@ def main(user, max_times, private, download_type, works_type, tags_include,
 
     config_path = config or root_path / 'config.json'
     config = Config(config_path)
+    if os.name == 'nt':
+        init_colorama()
     logger = config.get_logger('CLI')
     logger.info('Config file: %s' % config_path)
 

@@ -86,7 +86,7 @@ def time_checker(f):
     return f_do
 
 
-def _init_colorama():
+def init_colorama():
     'Init colorama on Windows for colored output.'
     import colorama
     colorama.init()
@@ -98,8 +98,6 @@ def init_logger(logger_name, log_file=None) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
-    if os.name == 'nt':
-        _init_colorama()
     ch_logger_formatter = coloredlogs.ColoredFormatter(CH_LOGGER_FORMAT)
     ch.setFormatter(ch_logger_formatter)
     logger.addHandler(ch)

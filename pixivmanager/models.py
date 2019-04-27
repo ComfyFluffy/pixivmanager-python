@@ -105,9 +105,13 @@ class Works(Base):
     caption = relationship('WorksCaption', uselist=False, lazy='joined')
     image_urls = relationship('WorksImageURLs')
 
-    tags = relationship('Tag', secondary=works_tags_table, backref='works')
+    tags = relationship(
+        'Tag', secondary=works_tags_table, backref='works', lazy='selectin')
     custom_tags = relationship(
-        'CustomTag', secondary=works_custom_tags_table, backref='works')
+        'CustomTag',
+        secondary=works_custom_tags_table,
+        backref='works',
+        lazy='selectin')
 
     def __repr__(self):
         return 'PixivWorks(works_id=%s, author_id=%s, title=%r)' % (
@@ -453,7 +457,7 @@ class Tag(Base):
         nullable=False,
         unique=True)
 
-    translation = relationship('TagTranslation', lazy='joined')
+    translation = relationship('TagTranslation')
 
     def __repr__(self):
         return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
