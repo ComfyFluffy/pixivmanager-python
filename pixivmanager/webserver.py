@@ -1,11 +1,13 @@
-from aiohttp import web
-from .daemon import Daemon
-from pathlib import Path
-from .config import Config
-from aiohttp.web_request import Request
-from aiohttp import WSMsgType
-import json
 import asyncio
+import json
+from pathlib import Path
+
+from aiohttp import WSMsgType, web
+from aiohttp.web_request import Request
+
+from .config import Config
+from .daemon import Daemon
+from .models import DatabaseHelper
 
 
 async def index(request: Request):
@@ -22,8 +24,7 @@ async def websocket_handler(request: Request):
             try:
                 j = json.loads(msg.data)
             except:
-                await ws.close()
-                return ws
+                raise web.HTTPBadRequest
 
             if j.get('action') == 'close':
                 await ws.close()
@@ -38,6 +39,7 @@ async def websocket_handler(request: Request):
 
 def main(daemon: Daemon, config: Config):
     app = web.Application()
+    app['db'] = DatabaseHelper(config.database_uri, create_tables=False)
 
     app.add_routes([
         web.get('/', index),
