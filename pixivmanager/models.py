@@ -24,7 +24,7 @@ def dict_setattr(obj, d: dict):
 @compiles(String, 'sqlite')
 def skip_sqlite_collation(element, compiler, **kwargs):
     '''
-    Sqlite doesn't support MYSql collation.
+    Sqlite doesn't support collation of MySQL.
     This will clear the collation if the database's type is sqlite.
     '''
     element.collation = None
