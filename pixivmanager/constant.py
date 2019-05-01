@@ -21,3 +21,20 @@ HTTP_HEADERS = {
     'App-Version': '5.0.132',
     'Referer': 'https://app-api.pixiv.net/'
 }
+
+QUERY_WORKS_ORDER_BY_STR = ('works_id', 'author_id', 'works_type', 'title',
+                            'page_count', 'total_views', 'total_bookmarks',
+                            'is_bookmarked', 'is_downloaded', 'bookmark_rate',
+                            'create_date', 'insert_date')
+QUERY_USER_ORDER_BY_STR = (
+    'local_id',
+    'user_id',
+    'name',
+    'is_followed',
+    'insert_date',
+    'total_illusts',
+    'total_manga',
+    'total_novels',
+    'total_illust_bookmarks_public',
+    'total_follow_users',
+)

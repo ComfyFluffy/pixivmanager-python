@@ -212,6 +212,7 @@ class PixivDownloader:
                     continue
                 works_ids.append(works.works_id)
                 self.single_works(works, ugoira_info=ugoira_info)
+                works.is_downloaded = True
             session.commit()
 
             next_url = r['next_url']

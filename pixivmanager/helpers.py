@@ -88,8 +88,11 @@ def time_checker(f):
 
 def init_colorama():
     'Init colorama on Windows for colored output.'
-    import colorama
-    colorama.init()
+    try:
+        import colorama
+        colorama.init()
+    except ImportError:
+        print('Unable to import colorama!')
 
 
 def init_logger(logger_name, log_file=None) -> logging.Logger:

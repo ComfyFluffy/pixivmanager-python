@@ -95,6 +95,7 @@ class Works(Base):
     total_views = Column(Integer)
     total_bookmarks = Column(Integer)
     is_bookmarked = Column(Boolean)
+    is_downloaded = Column(Boolean)
     bookmark_rate = Column(FLOAT)
     create_date = Column(IntegerTimestamp)
     insert_date = Column(IntegerTimestamp, default=datetime.now)
@@ -105,12 +106,9 @@ class Works(Base):
     caption = relationship('WorksCaption', uselist=False)
     image_urls = relationship('WorksImageURLs')
 
-    tags = relationship(
-        'Tag', secondary=works_tags_table, backref='works')
+    tags = relationship('Tag', secondary=works_tags_table, backref='works')
     custom_tags = relationship(
-        'CustomTag',
-        secondary=works_custom_tags_table,
-        backref='works')
+        'CustomTag', secondary=works_custom_tags_table, backref='works')
 
     def __repr__(self):
         return 'PixivWorks(works_id=%s, author_id=%s, title=%r)' % (
@@ -456,13 +454,16 @@ class Tag(Base):
         nullable=False,
         unique=True)
 
-    translation = relationship('TagTranslation')
+    translation = relationship('TagTranslation', lazy='subquery')
 
     def __repr__(self):
-        return 'Tag(tag_id=%r, tag_text=%r)' % (self.tag_id, self.tag_text)
+        return 'Tag(tag_id=%r, tag_text=%r, translation=%r)' % (
+            self.tag_id, self.tag_text, self.translation)
 
-    def get_translate(self, language):
-        return self.translation.filter(TagTranslation.language == language)
+    def get_translation(self, language: str) -> str:
+        for tt in self.translation:
+            if tt.language == language:
+                return tt.translation_text
 
     @classmethod
     def from_tags_json(cls, session: Session, tags: list, language: str,

@@ -7,6 +7,7 @@ python -m pixivmanager
 ```
 
 Welcome to submit feature requests & issues!
+Python 3.7 recommend.
 
 ## Features
 

@@ -1,5 +1,6 @@
-Click==7.0
-coloredlogs==10.0
-imageio==2.5.0
-requests==2.21.0
-SQLAlchemy==1.3.2
+Click
+coloredlogs
+imageio
+requests
+SQLAlchemy
+aiohttp
