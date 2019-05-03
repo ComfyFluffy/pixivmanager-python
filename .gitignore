@@ -11,5 +11,5 @@ test*.py
 /.history
 /pyvenv
 *.db
-/alembic.ini
-/alembic
+/TODO
+/pixivmanager/web_ui

@@ -22,6 +22,9 @@ class App:
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
         return await loop.run_in_executor(self.pool, f)
 
+    async def index(self, request: Request):
+        raise web.HTTPFound('/ui/')
+
     async def ui(self, request: Request):
         return web.FileResponse(self.index_html)
 
@@ -95,14 +98,15 @@ class App:
         self.logger.info('Starting web server...')
 
         self.app.add_routes([
-            web.get('/ui', self.ui),
+            web.get('/', self.index),
+            web.get('/ui', self.index),
+            web.get('/ui/', self.ui),
             web.get('/ws', self.websocket_handler),
+            web.static('/ui/', self.web_ui_dir, follow_symlinks=True),
             web.static(
                 '/img/origin',
                 self.config.pixiv_works_dir,
-                follow_symlinks=True),
-            web.static(
-                '/static', self.web_ui_dir / 'static', follow_symlinks=True)
+                follow_symlinks=True)
         ])
 
     def run_app(self):
