@@ -18,9 +18,28 @@ class App:
     ws_clients = []
     ws_id = 0
 
-    async def query_db(self, f):
+    def query_with_db(self, query):
+        with self.db.get_session() as session:
+            query.session = session
+            return query.all()
+
+    async def _search_tags(self, d: dict):
+        term = d['term']
+        if term and len(term) < 256:
+            q = tags_like(term, d['exclude'])
+            r = await self.query_db(q)
+            return {
+                'id':
+                d.get('id'),
+                'result': [{
+                    'name': t.tag_text,
+                    'translation': t.get_translation(self.language)
+                } for t in r]
+            }
+
+    async def query_db(self, query):
         loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self.pool, f)
+        return await loop.run_in_executor(self.pool, self.query_with_db, query)
 
     async def index(self, request: Request):
         raise web.HTTPFound('/ui/')
@@ -50,25 +69,18 @@ class App:
                     except json.JSONDecodeError:
                         raise web.HTTPBadRequest
 
-                    if d.get('query', {}).get('type') == 'tags_like':
-                        text = d.get('query').get('text')
-                        if text:
-                            q = tags_like(text)
-                            with self.db.get_session() as session:
-                                q.session = session
-                                r = await self.query_db(q.all)
-                            await ws.send_json({
-                                'id':
-                                d.get('id'),
-                                'result': [{
-                                    'name':
-                                    t.tag_text,
-                                    'translation':
-                                    t.get_translation(self.language)
-                                } for t in r]
-                            })
+                    try:
+                        action = d.get('action')
+                        if action:
+                            r = await self.ws_actions[action](d)
+                    except:
+                        r = None
+                        self.logger.exception('Error handling ws message')
+
+                    if r:
+                        await ws.send_json(r)
                     else:
-                        await ws.send_json({'message': 'qwp'})
+                        await ws.send_json({'message': 'no such action'})
                 elif msg.type == WSMsgType.ERROR:
                     self.logger.warning(
                         'WebSocket connection closed with exception %s' %
@@ -79,11 +91,11 @@ class App:
             self.logger.info(
                 'WebSocket client closed: %s:%s, current client(s): %s' %
                 (peername[0], peername[1], len(self.ws_clients)))
-            print(self.ws_clients)
 
         return ws
 
     def __init__(self, config: Config, daemon: Daemon):
+        self.ws_actions = {'search_tags': self._search_tags}
         self.app = web.Application()
         self.db = DatabaseHelper(
             config.database_uri, create_tables=False, echo=True)

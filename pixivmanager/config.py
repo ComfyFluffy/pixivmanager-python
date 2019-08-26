@@ -8,7 +8,7 @@ from .helpers import init_logger
 DEFAULT_CFG = {
     'storage_dir': '',
     # Directory to save downloaded works amd database files
-    # Default: ~/.pixivmanager
+    # Default: ~/.pixivmanager-python
     'pixiv_works_dir': '',
     # Saved Pixiv works
     # Defult: (storage_dir)/illusts
@@ -51,7 +51,7 @@ DEFAULT_CFG = {
 
 class Config:
     'JSON config loding and saving.'
-    home_root_path = Path.home() / '.pixivmanager'
+    home_root_path = Path.home() / '.pixivmanager-python'
 
     def __init__(self, cfg_json_file):
         self.cfg_json_file = Path(cfg_json_file)

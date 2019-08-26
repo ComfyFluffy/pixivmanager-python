@@ -13,3 +13,4 @@ test*.py
 *.db
 /TODO
 /pixivmanager/web_ui
+/mi.py

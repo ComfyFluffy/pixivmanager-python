@@ -51,17 +51,21 @@ def search_works():
     pass
 
 
-def tags_like(text: str, language: str = None, limit: int = 10) -> Query:
+def tags_like(term: str, language: str = None, exclude=[], limit=10) -> Query:
     q: Query = Query(Tag).outerjoin(Tag.translation).options(
         selectinload(Tag.translation))
-    f_or = [Tag.tag_text.like(text)]
+    f_or = [Tag.tag_text.collate('utf8mb4_0900_ai_ci').like(term)]
     if language:
         f_or.append(
             and_(
-                TagTranslation.translation_text.like(text),
+                TagTranslation.translation_text.like(term),
                 TagTranslation.language == language))
     else:
-        f_or.append(TagTranslation.translation_text.like(text))
-    q = q.filter(or_(*f_or)).limit(10)
+        f_or.append(TagTranslation.translation_text.like(term))
+    if exclude:
+        q = q.filter(or_(*f_or), Tag.tag_text.notin_(exclude))
+    else:
+        q = q.filter(or_(*f_or))
+    q = q.limit(limit)
 
     return q

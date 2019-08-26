@@ -46,13 +46,13 @@ from .helpers import init_colorama
     '--config',
     default=None,
     type=click.STRING,
-    help='Config JSON file, default: ~/.pixivmanager/config.json')
+    help='Config JSON file, default: ~/.pixivmanager-python/config.json')
 def main(user, max_times, private, download_type, works_type, tags_include,
          tags_exclude, echo, config):
     '''
     CLI for PixivManager.
     '''
-    root_path: Path = Path.home() / '.pixivmanager'
+    root_path: Path = Path.home() / '.pixivmanager-python'
     if not config:
         os.makedirs(root_path, exist_ok=True)
 
@@ -114,8 +114,9 @@ def main(user, max_times, private, download_type, works_type, tags_include,
         logger.info('Downloading user\'s works...')
     if not user:
         user = papi.pixiv_user_id
-    pdl.all_works(download_type, papi, pdb.sessionmaker(), user, max_times,
-                  works_type, tags_include, tags_exclude)
+    session = pdb.sessionmaker()
+    pdl.all_works(download_type, papi, session, user, max_times, works_type,
+                  tags_include, tags_exclude)
 
     while pdl.unfinished_tasks:
         # Wait until all tasks done.

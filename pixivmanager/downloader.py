@@ -6,6 +6,8 @@ import threading
 import zipfile
 from logging import Logger
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
 
 import imageio
 import requests
@@ -34,12 +36,16 @@ class PixivDownloader:
                  root_download_dir: Path,
                  threads=5,
                  logger: Logger = None):
-        assert threads <= 32
+        if threads > 32:
+            raise ValueError('too many threads: %s' % threads)
         self.root_download_dir = Path(root_download_dir)
         self.dq = queue.Queue()
         self.s = requests.Session()
         self.s.headers = dict(HTTP_HEADERS)
         self.download_threads_list = []
+        self.ugoira_maker_pool = ThreadPoolExecutor(
+            max_workers=cpu_count() - 1 or 1)
+
         if logger:
             self.logger = logger
         self.logger.info('Downloader threads: %s' % threads)
@@ -74,14 +80,15 @@ class PixivDownloader:
                 self.save_ugoira_gif(ugoira_info, ugoira_zip, parent_dir)
         self.logger.info('Downloaded: %s' % filename)
 
-    def save_ugoira_gif(self, ugoira_info, ugoira_zip, parent_dir: Path):
+    def save_ugoira_gif(self, ugoira_info, ugoira_zip_path, parent_dir: Path):
         'Use ImageIO to corvent Ugoira ZIP to GIF.'
         wid = ugoira_info['works_id']
         self.logger.info('Making GIF for ugoira %s' % wid)
         tgif: Path = parent_dir / ('%s_ugoira_tmp.gif' % wid)
         gif: Path = parent_dir / ('%s_ugoira.gif' % wid)
-        in_zip_files = ugoira_zip.namelist()
-        images = [imageio.imread(ugoira_zip.read(f)) for f in in_zip_files]
+        with zipfile.ZipFile(ugoira_zip_path) as ugoira_zip:
+            in_zip_files = ugoira_zip.namelist()
+            images = [imageio.imread(ugoira_zip.read(f)) for f in in_zip_files]
         imageio.mimsave(tgif, images, duration=ugoira_info['delay'])
         tgif.replace(gif)
 
@@ -94,8 +101,8 @@ class PixivDownloader:
         if image_path.exists():
             if ugoira_info and not (parent_dir / (
                     '%s_ugoira.gif' % ugoira_info['works_id'])).exists():
-                with zipfile.ZipFile(image_path) as ugoira_zip:
-                    self.save_ugoira_gif(ugoira_info, ugoira_zip, parent_dir)
+                self.ugoira_maker_pool.submit(
+                    self.save_ugoira_gif, ugoira_info, image_path, parent_dir)
             return
         parent_dir.mkdir(parents=True, exist_ok=True)
         with self.s.get(url, stream=True, timeout=DOWNLOADER_TIMEOUT) as res:
