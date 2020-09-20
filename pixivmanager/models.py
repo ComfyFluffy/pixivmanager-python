@@ -66,18 +66,16 @@ works_tags_table = Table(
 works_custom_tags_table = Table(
     'works_custom_tags', Base.metadata,
     Column('row_id', Integer, primary_key=True),
-    Column(
-        'works_id',
-        Integer,
-        ForeignKey('works.works_id'),
-        index=True,
-        nullable=False),
-    Column(
-        'tag_id',
-        Integer,
-        ForeignKey('custom_tags.tag_id'),
-        index=True,
-        nullable=False))
+    Column('works_id',
+           Integer,
+           ForeignKey('works.works_id'),
+           index=True,
+           nullable=False),
+    Column('tag_id',
+           Integer,
+           ForeignKey('custom_tags.tag_id'),
+           index=True,
+           nullable=False))
 pixivmanager_version_table = Table(
     'pixivmanager_version', Base.metadata,
     Column('version', String(16), primary_key=True))
@@ -87,8 +85,10 @@ class Works(Base):
     __tablename__ = 'works'
 
     works_id = Column(Integer, index=True, primary_key=True)
-    author_id = Column(
-        Integer, ForeignKey('users.user_id'), index=True, nullable=False)
+    author_id = Column(Integer,
+                       ForeignKey('users.user_id'),
+                       index=True,
+                       nullable=False)
     works_type = Column(String(15))
     title = Column(String(255))
     page_count = Column(Integer)
@@ -104,11 +104,13 @@ class Works(Base):
     local = relationship('WorksLocal', uselist=False)
     ugoira = relationship('Ugoira', uselist=False)
     caption = relationship('WorksCaption', uselist=False)
-    image_urls = relationship('WorksImageURLs')
+    image_urls = relationship(
+        'WorksImageURLs', cascade="save-update, merge, delete, delete-orphan")
 
     tags = relationship('Tag', secondary=works_tags_table, backref='works')
-    custom_tags = relationship(
-        'CustomTag', secondary=works_custom_tags_table, backref='works')
+    custom_tags = relationship('CustomTag',
+                               secondary=works_custom_tags_table,
+                               backref='works')
 
     def __repr__(self):
         return 'PixivWorks(works_id=%s, author_id=%s, title=%r)' % (
@@ -182,12 +184,11 @@ class WorksLocal(Base):
     __tablename__ = 'works_local'
 
     local_id = Column(Integer, primary_key=True, index=True)
-    works_id = Column(
-        Integer,
-        ForeignKey('works.works_id'),
-        index=True,
-        nullable=False,
-        unique=True)
+    works_id = Column(Integer,
+                      ForeignKey('works.works_id'),
+                      index=True,
+                      nullable=False,
+                      unique=True)
 
     def __repr__(self):
         return 'WorksLocal(local_id=%s, works_id=%s)' % (self.local_id,
@@ -253,8 +254,10 @@ class User(Base):
 class UserDetail(Base):
     __tablename__ = 'users_details'
 
-    user_id = Column(
-        Integer, ForeignKey('users.user_id'), primary_key=True, index=True)
+    user_id = Column(Integer,
+                     ForeignKey('users.user_id'),
+                     primary_key=True,
+                     index=True)
     total_illusts = Column(Integer)
     total_manga = Column(Integer)
     total_novels = Column(Integer)
@@ -265,7 +268,9 @@ class UserDetail(Base):
     comment = Column(Text)
 
     @classmethod
-    def from_user_json(cls, session: Session, json_info,
+    def from_user_json(cls,
+                       session: Session,
+                       json_info,
                        save_to_session=False):
         kv = {
             'user_id':
@@ -301,8 +306,10 @@ class UserDetail(Base):
 class Ugoira(Base):
     __tablename__ = 'ugoiras'
 
-    works_id = Column(
-        Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
+    works_id = Column(Integer,
+                      ForeignKey('works.works_id'),
+                      primary_key=True,
+                      index=True)
     delay_text = Column(Text)
     zip_url = Column(String(255))
 
@@ -352,8 +359,10 @@ class WorksImageURLs(Base):
         return 'WorksImageURLs(works_id=%s,original=%r)' \
             % (self.works_id, self.original)
 
-    works_id = Column(
-        Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
+    works_id = Column(Integer,
+                      ForeignKey('works.works_id'),
+                      primary_key=True,
+                      index=True)
     page = Column(Integer, primary_key=True)
     square_medium = Column(String(255))
     medium = Column(String(255))
@@ -383,11 +392,10 @@ class WorksImageURLs(Base):
         r = []
         if works_json_info['page_count'] > 1 and works_json_info['meta_pages']:
             for page, u in enumerate(works_json_info['meta_pages']):
-                o = cls.get_by_id(
-                    session,
-                    works_json_info['id'],
-                    page,
-                    save_to_session=save_to_session)
+                o = cls.get_by_id(session,
+                                  works_json_info['id'],
+                                  page,
+                                  save_to_session=save_to_session)
                 urls = u['image_urls']
 
                 o.square_medium = urls['square_medium']
@@ -399,11 +407,10 @@ class WorksImageURLs(Base):
 
         elif works_json_info['page_count'] == 1 and works_json_info[
                 'meta_single_page']:
-            o = cls.get_by_id(
-                session,
-                works_json_info['id'],
-                0,
-                save_to_session=save_to_session)
+            o = cls.get_by_id(session,
+                              works_json_info['id'],
+                              0,
+                              save_to_session=save_to_session)
             urls = works_json_info['image_urls']
 
             o.square_medium = urls['square_medium']
@@ -423,8 +430,10 @@ class WorksImageURLs(Base):
 class WorksCaption(Base):
     __tablename__ = 'works_captions'
 
-    works_id = Column(
-        Integer, ForeignKey('works.works_id'), primary_key=True, index=True)
+    works_id = Column(Integer,
+                      ForeignKey('works.works_id'),
+                      primary_key=True,
+                      index=True)
     caption_text = Column(Text)
 
     def __str__(self):
@@ -448,11 +457,10 @@ class Tag(Base):
     __tablename__ = 'tags'
 
     tag_id = Column(Integer, primary_key=True)
-    tag_text = Column(
-        String(255, collation='utf8mb4_0900_as_cs'),
-        index=True,
-        nullable=False,
-        unique=True)
+    tag_text = Column(String(255, collation='utf8mb4_0900_as_cs'),
+                      index=True,
+                      nullable=False,
+                      unique=True)
 
     translation = relationship('TagTranslation', lazy='subquery')
 
@@ -492,10 +500,9 @@ class Tag(Base):
                         tt.translation_text = t_translate
                         _translate_set = True
                 if not _translate_set:
-                    tt = TagTranslation(
-                        tag_id=t.tag_id,
-                        language=language,
-                        translation_text=t_translate)
+                    tt = TagTranslation(tag_id=t.tag_id,
+                                        language=language,
+                                        translation_text=t_translate)
                     t.translation.append(tt)
             cache[t_name] = t
             r.append(t)
@@ -505,8 +512,10 @@ class Tag(Base):
 class TagTranslation(Base):
     __tablename__ = 'tags_translation'
 
-    tag_id = Column(
-        Integer, ForeignKey('tags.tag_id'), primary_key=True, index=True)
+    tag_id = Column(Integer,
+                    ForeignKey('tags.tag_id'),
+                    primary_key=True,
+                    index=True)
     language = Column(String(16), primary_key=True, index=True)
     translation_text = Column(String(255), nullable=False)
 
@@ -519,11 +528,10 @@ class CustomTag(Base):
     __tablename__ = 'custom_tags'
 
     tag_id = Column(Integer, primary_key=True)
-    tag_text = Column(
-        String(255, collation='utf8mb4_0900_as_cs'),
-        index=True,
-        nullable=False,
-        unique=True)
+    tag_text = Column(String(255, collation='utf8mb4_0900_as_cs'),
+                      index=True,
+                      nullable=False,
+                      unique=True)
 
     def __str__(self):
         return str(self.tag_text)

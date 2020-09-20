@@ -19,6 +19,9 @@ from .constant import HTTP_HEADERS, DOWNLOADER_TIMEOUT
 from .helpers import _retry, init_logger
 from .models import User, Works, WorksLocal
 
+find_date = re.compile(r'img/(\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2})/')
+find_d = re.compile(r'\d*')
+
 
 class PixivDownloader:
     '''
@@ -94,16 +97,31 @@ class PixivDownloader:
 
     @_retry((requests.RequestException, exceptions.DownloadException,
              zipfile.BadZipFile))
-    def _download(self, url: str, download_dir: Path, ugoira_info):
-        filename: str = url.split('/')[-1].split('?')[0]
+    def _download(self, url: str, download_dir: Path, filename_suffix: str, ugoira_info):
+        filename_o = Path(url.split('/')[-1].split('?')[0])
+        if filename_suffix:
+            filename = filename_o.stem + '_' + filename_suffix + filename_o.suffix
+        else:
+            filename = str(filename_o)
         parent_dir: Path = self.root_download_dir / download_dir
         image_path = parent_dir / filename
-        if image_path.exists():
+        fd = find_d.findall(str(download_dir))
+        fd = [x for x in fd if x]
+        wid = ''
+        if len(fd) == 3:
+            aid = fd[0]
+            wid = fd[1]
+        elif len(fd) == 1:
+            aid = fd[0]
+
+        if image_path.exists() or (parent_dir / filename_o).exists() or (self.root_download_dir / aid / wid / filename_o).exists():
             if ugoira_info and not (parent_dir / (
                     '%s_ugoira.gif' % ugoira_info['works_id'])).exists():
                 self.ugoira_maker_pool.submit(
                     self.save_ugoira_gif, ugoira_info, image_path, parent_dir)
             return
+        # print(fd,download_dir,image_path)
+        # return
         parent_dir.mkdir(parents=True, exist_ok=True)
         with self.s.get(url, stream=True, timeout=DOWNLOADER_TIMEOUT) as res:
             if res.status_code == 200:
@@ -112,7 +130,7 @@ class PixivDownloader:
                                 ugoira_info)
             elif url.find('1920x1080') != -1:
                 self._download((url.replace('1920x1080', '600x600')),
-                               download_dir, ugoira_info)
+                               download_dir, filename_suffix, ugoira_info)
             else:
                 self.logger.warn(
                     'Status code: %s | Url: %s' % (res.status_code, url))
@@ -121,13 +139,13 @@ class PixivDownloader:
         while True:
             task = self.dq.get()
             try:
-                self._download(task[0], task[1], task[2])
+                self._download(task[0], task[1], task[2], task[3])
             except Exception:
                 self.logger.exception('Download error: ' + str(task))
             self.dq.task_done()
 
-    def _add(self, url: str, download_dir: Path, ugoira_info=None):
-        task = (url, download_dir, ugoira_info)
+    def _add(self, url: str, download_dir: Path, filename: str, ugoira_info=None):
+        task = (url, download_dir, filename, ugoira_info)
         self.dq.put(task)
 
     def single_works(self,
@@ -135,23 +153,26 @@ class PixivDownloader:
                      image_size='original',
                      ugoira_info=None):
         if ugoira_info and works.works_type == 'ugoira':
-            img_parent_dir: Path = Path(str(works.author_id)) / str(
-                works.works_id)
+            img_parent_dir: Path = Path(str(works.author_id)) / (str(
+                works.works_id) + '_' + find_date.findall(ugoira_info['zip_url'])[0].replace('/', ''))
             zip_url = ugoira_info['zip_url'].replace('600x600', '1920x1080')
             # Replace size for higher resolution
-            self._add(zip_url, img_parent_dir, ugoira_info)
-            self._add(getattr(works.image_urls[0], image_size), img_parent_dir)
+            self._add(zip_url, img_parent_dir, '', ugoira_info)
+            self._add(
+                getattr(works.image_urls[0], image_size), img_parent_dir, '')
             return 2
         if works.page_count == 1:
             self._add(
                 getattr(works.image_urls[0], image_size),
-                Path(str(works.author_id)))
+                Path(str(works.author_id)),
+                find_date.findall(getattr(works.image_urls[0], image_size))[0].replace('/', ''))
+
             return 0
         else:
             for url in works.image_urls:
                 self._add(
                     getattr(url, image_size),
-                    Path(str(works.author_id)) / str(works.works_id))
+                    Path(str(works.author_id)) / (str(works.works_id) + '_' + find_date.findall(getattr(url, image_size))[0].replace('/', '')), '')
             return 1
 
     def _analyze_res(self,
@@ -207,15 +228,15 @@ class PixivDownloader:
                     'zip_url':
                     ugoira_json['ugoira_metadata']['zip_urls']['medium'],
                     'delay': [
-                        f['delay'] // 10 / 100  #1/100s
+                        f['delay'] // 10 / 100  # 1/100s
                         for f in ugoira_json['ugoira_metadata']['frames']
                     ]
                 } if wj['type'] == 'ugoira' and ugoira_json else None
 
                 works_tags = {t['name'] for t in wj['tags']}
                 if works_type and works.works_type != works_type \
-                or tags_include and not tags_include <= works_tags \
-                or tags_exclude and tags_exclude <= works_tags:
+                        or tags_include and not tags_include <= works_tags \
+                        or tags_exclude and tags_exclude <= works_tags:
                     continue
                 works_ids.append(works.works_id)
                 self.single_works(works, ugoira_info=ugoira_info)
